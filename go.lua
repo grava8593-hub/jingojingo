@@ -2243,18 +2243,9 @@ MakeButton(pSystem, "FPS Booster", 5, function()
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = "FPS Booster",
         Text = "FPS Booster Active!.",
-        Duration = 4
+        Duration = 3
     })
 end)
-
-if SG and not _G.PotatoAncestryHooked then
-    _G.PotatoAncestryHooked = true
-    SG.AncestryChanged:Connect(function(_, parent)
-        if not parent and _G.PotatoActive and _G.RestorePotatoNormal then
-            _G.RestorePotatoNormal()
-        end
-    end)
-end
 
 MakeButton(pSystem, "Destroy GUI", 6, DestroyAll)
 
