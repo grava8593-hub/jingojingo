@@ -472,14 +472,12 @@ local function PerformInstantPickup(egg)
     local root = GetRoot()
     if not root or not egg or not egg.Part then return false end
 
-    -- 1. Teleport instan langsung ke dekat telur agar lolos batas 90 studs server
     root.CFrame = CFrame.new(egg.Part.Position + Vector3.new(0, 2.5, 0))
     root.AssemblyLinearVelocity = Vector3.zero
-    task.wait(0.05)
+    task.wait(0.04)
 
     local uuid = egg.UUID or GetEggUUID(egg.Object)
 
-    -- 2. Tembak Remote Pickup & Touch
     if EggPickupRemote then
         if uuid then
             SafeFire(EggPickupRemote, uuid)
@@ -489,17 +487,18 @@ local function PerformInstantPickup(egg)
         end
     end
 
-    if firetouchinterest and root and egg.Part then
-        pcall(function()
-            firetouchinterest(root, egg.Part, 0)
-            firetouchinterest(root, egg.Part, 1)
-        end)
-    end
-
     for _, prompt in ipairs(egg.Object:GetDescendants()) do
         if prompt:IsA("ProximityPrompt") then
             TriggerPromptInstant(prompt)
         end
+    end
+
+    if firetouchinterest and root and egg.Part then
+        pcall(function()
+            firetouchinterest(root, egg.Part, 0)
+            task.wait()
+            firetouchinterest(root, egg.Part, 1)
+        end)
     end
 
     ClickOrActivateEgg()
@@ -2102,7 +2101,41 @@ MakeButton(pSystem, "Rejoin Current Server", 4, function()
     end
 end)
 
-MakeButton(pSystem, "Destroy GUI", 5, DestroyAll)
+MakeButton(pSystem, "Boost FPS (Reduce Lag)", 5, function()
+    pcall(function()
+        settings().Rendering.QualityLevel = 1
+        local lighting = game:GetService("Lighting")
+        lighting.GlobalShadows = false
+        lighting.FogEnd = 9e9
+        lighting.Brightness = 1
+
+        for _, v in ipairs(lighting:GetChildren()) do
+            if v:IsA("PostEffect") or v:IsA("Atmosphere") or v:IsA("Clouds") then
+                v.Enabled = false
+            end
+        end
+
+        for _, v in ipairs(Workspace:GetDescendants()) do
+            if v:IsA("BasePart") and not v:IsDescendantOf(LP.Character) then
+                v.Material = Enum.Material.SmoothPlastic
+                v.CastShadow = false
+                v.Reflectance = 0
+            elseif v:IsA("Decal") or v:IsA("Texture") then
+                v.Transparency = 1
+            elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles") then
+                v.Enabled = false
+            end
+        end
+
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "FPS Boosted!",
+            Text = "Lag reduced, textures simplified!",
+            Duration = 4
+        })
+    end)
+end)
+
+MakeButton(pSystem, "Destroy GUI", 6, DestroyAll)
 
 game:GetService("StarterGui"):SetCore("SendNotification", {
     Title = "Erdeva Hub",
