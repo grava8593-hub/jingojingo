@@ -515,27 +515,6 @@ local function PerformInstantPickup(egg)
     return IsCarryingEgg() or not egg.Object:IsDescendantOf(Workspace)
 end
 
-    if firetouchinterest and root and egg.Part then
-        pcall(function()
-            firetouchinterest(root, egg.Part, 0)
-            task.wait()
-            firetouchinterest(root, egg.Part, 1)
-        end)
-    end
-
-    ClickOrActivateEgg()
-
-    local startWait = os.clock()
-    while os.clock() - startWait < 0.8 do
-        if IsCarryingEgg() or not egg.Object:IsDescendantOf(Workspace) or (egg.Part and egg.Part.Transparency >= 0.9) then
-            return true
-        end
-        task.wait(0.08)
-    end
-
-    return IsCarryingEgg() or not egg.Object:IsDescendantOf(Workspace)
-end
-
 local function PerformFullDelivery()
     local root = GetRoot()
     if not root then return end
