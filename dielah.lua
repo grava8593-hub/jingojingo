@@ -2103,184 +2103,325 @@ end)
 
 MakeButton(pSystem, "FPS Booster", 5, function()
     pcall(function()
-        local lighting = game:GetService("Lighting")
-        lighting.GlobalShadows = false
-        lighting.FogEnd = 9e9
-        lighting.Brightness = 1
+        local Lighting = game:GetService("Lighting")
+        local Players = game:GetService("Players")
+        local Terrain = Workspace:FindFirstChildOfClass("Terrain")
 
-        for _, v in ipairs(lighting:GetChildren()) do
-            if v:IsA("PostEffect") or v:IsA("Atmosphere") or v:IsA("Clouds") then
+        -- =========================
+        -- ULTRA POTATO GRAPHICS
+        -- =========================
+        pcall(function()
+            settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+        end)
+
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 9e9
+        Lighting.Brightness = 0
+        Lighting.EnvironmentDiffuseScale = 0
+        Lighting.EnvironmentSpecularScale = 0
+
+        for _, v in ipairs(Lighting:GetChildren()) do
+            if v:IsA("PostEffect")
+                or v:IsA("Atmosphere")
+                or v:IsA("Clouds") then
                 v.Enabled = false
             end
         end
-    end)
 
-    pcall(function()
-        local terrain = Workspace:FindFirstChildOfClass("Terrain")
-        if terrain then
-            terrain.Decoration = false
-            terrain.WaterWaveSize = 0
-            terrain.WaterWaveSpeed = 0
-            terrain.WaterReflectance = 0
-            terrain.WaterTransparency = 0
-        end
-    end)
-
-    local function HideEntity(model)
-        if not model or model == LP.Character or model:IsDescendantOf(LP.Character) then
-            return
+        -- =========================
+        -- TERRAIN
+        -- =========================
+        if Terrain then
+            Terrain.Decoration = false
+            Terrain.WaterWaveSize = 0
+            Terrain.WaterWaveSpeed = 0
+            Terrain.WaterReflectance = 0
+            Terrain.WaterTransparency = 1
         end
 
-        pcall(function()
-            for _, obj in ipairs(model:GetDescendants()) do
-                if obj:IsA("BasePart") then
-                    obj.Transparency = 1
-                    obj.CastShadow = false
-                    obj.CanCollide = false
+        -- =========================
+        -- ANIMATION
+        -- =========================
+        local function StopAnimator(animator)
+            pcall(function()
+                for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+                    track:Stop(0)
+                end
 
-                elseif obj:IsA("Decal") or obj:IsA("Texture") then
-                    obj.Transparency = 1
-
-                elseif obj:IsA("BillboardGui") or obj:IsA("SurfaceGui") or obj:IsA("Highlight") then
-                    obj.Enabled = false
-
-                elseif obj:IsA("ParticleEmitter")
-                    or obj:IsA("Trail")
-                    or obj:IsA("Beam")
-                    or obj:IsA("Smoke")
-                    or obj:IsA("Fire")
-                    or obj:IsA("Sparkles") then
-                    obj.Enabled = false
-
-                elseif obj:IsA("Animator") or obj:IsA("AnimationController") then
-                    for _, track in ipairs(obj:GetPlayingAnimationTracks()) do
+                animator.AnimationPlayed:Connect(function(track)
+                    pcall(function()
                         track:Stop(0)
+                    end)
+                end)
+            end)
+        end
+
+        -- =========================
+        -- HIDE ENTITY
+        -- =========================
+        local function HideEntity(model)
+            if not model
+                or model == LP.Character
+                or model:IsDescendantOf(LP.Character) then
+                return
+            end
+
+            pcall(function()
+                for _, obj in ipairs(model:GetDescendants()) do
+
+                    if obj:IsA("BasePart") then
+                        obj.Transparency = 1
+                        obj.LocalTransparencyModifier = 1
+                        obj.CastShadow = false
+                        obj.CanCollide = false
+                        obj.CanTouch = false
+                        obj.CanQuery = false
+
+                    elseif obj:IsA("Decal")
+                        or obj:IsA("Texture") then
+                        obj.Transparency = 1
+
+                    elseif obj:IsA("BillboardGui")
+                        or obj:IsA("SurfaceGui")
+                        or obj:IsA("Highlight") then
+                        obj.Enabled = false
+
+                    elseif obj:IsA("ParticleEmitter")
+                        or obj:IsA("Trail")
+                        or obj:IsA("Beam")
+                        or obj:IsA("Smoke")
+                        or obj:IsA("Fire")
+                        or obj:IsA("Sparkles") then
+                        obj.Enabled = false
+
+                    elseif obj:IsA("Animator") then
+                        StopAnimator(obj)
+
+                    elseif obj:IsA("AnimationController") then
+                        for _, animator in ipairs(obj:GetDescendants()) do
+                            if animator:IsA("Animator") then
+                                StopAnimator(animator)
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+
+        -- =========================
+        -- NPC LIST
+        -- =========================
+        local NPCNames = {
+            Rick = true,
+            Tim = true,
+            Richie = true,
+            Eggo = true,
+            GirlBacon = true,
+            BoyBacon = true
+        }
+
+        -- =========================
+        -- EXISTING NPC
+        -- =========================
+        pcall(function()
+            local stalls = Workspace:FindFirstChild("Stalls")
+
+            if stalls then
+                for _, npcName in ipairs({
+                    "Rick",
+                    "Tim",
+                    "Richie",
+                    "Eggo"
+                }) do
+                    local npc = stalls:FindFirstChild(npcName, true)
+
+                    if npc then
+                        HideEntity(npc)
+                    end
+                end
+            end
+
+            local functionals = Workspace:FindFirstChild("Functionals")
+
+            if functionals then
+                for _, npcName in ipairs({
+                    "GirlBacon",
+                    "BoyBacon"
+                }) do
+                    local npc = functionals:FindFirstChild(npcName, true)
+
+                    if npc then
+                        HideEntity(npc)
                     end
                 end
             end
         end)
-    end
 
-    local NPCNames = {
-        Rick = true,
-        Tim = true,
-        Richie = true,
-        Eggo = true,
-        GirlBacon = true,
-        BoyBacon = true
-    }
-
-    -- Hide NPC yang sudah ada
-    pcall(function()
-        local stalls = Workspace:FindFirstChild("Stalls")
-        if stalls then
-            for _, npcName in ipairs({"Rick", "Tim", "Richie", "Eggo"}) do
-                local npc = stalls:FindFirstChild(npcName, true)
-                if npc then
-                    HideEntity(npc)
+        -- =========================
+        -- EXISTING PLAYERS
+        -- =========================
+        pcall(function()
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr ~= LP and plr.Character then
+                    HideEntity(plr.Character)
                 end
             end
-        end
 
-        local functionals = Workspace:FindFirstChild("Functionals")
-        if functionals then
-            for _, baconName in ipairs({"GirlBacon", "BoyBacon"}) do
-                local bacon = functionals:FindFirstChild(baconName, true)
-                if bacon then
-                    HideEntity(bacon)
-                end
-            end
-        end
-    end)
-
-    -- Hide player lain
-    pcall(function()
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= LP and plr.Character then
-                HideEntity(plr.Character)
-            end
-        end
-
-        Players.PlayerAdded:Connect(function(plr)
-            plr.CharacterAdded:Connect(function(char)
-                HideEntity(char)
+            Players.PlayerAdded:Connect(function(plr)
+                plr.CharacterAdded:Connect(function(char)
+                    HideEntity(char)
+                end)
             end)
         end)
-    end)
 
-    -- Potato Mode
-    pcall(function()
-        for _, v in ipairs(Workspace:GetDescendants()) do
-            if not v:IsDescendantOf(LP.Character) then
-                local isEgg = string.find(string.lower(v.Name), "egg")
+        -- =========================
+        -- POTATO MAP
+        -- =========================
+        pcall(function()
+            for _, v in ipairs(Workspace:GetDescendants()) do
 
-                if v:IsA("BasePart") and not isEgg then
-                    v.Material = Enum.Material.SmoothPlastic
-                    v.CastShadow = false
-                    v.Reflectance = 0
+                if not v:IsDescendantOf(LP.Character) then
 
-                elseif (v:IsA("Decal") or v:IsA("Texture")) and not isEgg then
-                    v.Transparency = 1
+                    local isEgg =
+                        string.find(string.lower(v.Name), "egg") ~= nil
 
-                elseif v:IsA("ParticleEmitter")
-                    or v:IsA("Trail")
-                    or v:IsA("Beam")
-                    or v:IsA("Smoke")
-                    or v:IsA("Fire")
-                    or v:IsA("Sparkles") then
-                    v.Enabled = false
+                    if v:IsA("BasePart") and not isEgg then
 
-                elseif v:IsA("Light") or v:IsA("Highlight") then
-                    v.Enabled = false
+                        v.Material = Enum.Material.SmoothPlastic
+                        v.CastShadow = false
+                        v.Reflectance = 0
+
+                        -- MeshPart low rendering
+                        if v:IsA("MeshPart") then
+                            pcall(function()
+                                v.RenderFidelity =
+                                    Enum.RenderFidelity.Performance
+                            end)
+                        end
+
+                    elseif (v:IsA("Decal")
+                        or v:IsA("Texture"))
+                        and not isEgg then
+
+                        v.Transparency = 1
+
+                    elseif v:IsA("ParticleEmitter")
+                        or v:IsA("Trail")
+                        or v:IsA("Beam")
+                        or v:IsA("Smoke")
+                        or v:IsA("Fire")
+                        or v:IsA("Sparkles") then
+
+                        v.Enabled = false
+
+                    elseif v:IsA("Light")
+                        or v:IsA("Highlight") then
+
+                        v.Enabled = false
+
+                    elseif v:IsA("Animator") then
+
+                        StopAnimator(v)
+
+                    elseif v:IsA("SurfaceAppearance") then
+
+                        pcall(function()
+                            v:Destroy()
+                        end)
+                    end
                 end
             end
-        end
-    end)
+        end)
 
-    -- Proses object baru tanpa timer / task.wait
-    Workspace.DescendantAdded:Connect(function(newObj)
-        if newObj:IsDescendantOf(LP.Character) then
-            return
-        end
+        -- =========================
+        -- NEW OBJECTS
+        -- =========================
+        Workspace.DescendantAdded:Connect(function(newObj)
 
-        pcall(function()
-            local model = newObj:IsA("Model") and newObj
-                or newObj:FindFirstAncestorOfClass("Model")
-
-            if model and NPCNames[model.Name] then
-                HideEntity(model)
+            if newObj:IsDescendantOf(LP.Character) then
                 return
             end
 
-            if newObj:IsA("ParticleEmitter")
-                or newObj:IsA("Trail")
-                or newObj:IsA("Beam")
-                or newObj:IsA("Smoke")
-                or newObj:IsA("Fire")
-                or newObj:IsA("Sparkles") then
-                newObj.Enabled = false
+            pcall(function()
 
-            elseif newObj:IsA("Light") or newObj:IsA("Highlight") then
-                newObj.Enabled = false
+                -- NPC baru
+                local model =
+                    newObj:IsA("Model")
+                    and newObj
+                    or newObj:FindFirstAncestorOfClass("Model")
 
-            elseif newObj:IsA("Animator") or newObj:IsA("AnimationController") then
-                for _, track in ipairs(newObj:GetPlayingAnimationTracks()) do
-                    track:Stop(0)
+                if model and NPCNames[model.Name] then
+                    HideEntity(model)
+                    return
                 end
 
-            elseif newObj:IsA("Decal") or newObj:IsA("Texture") then
-                if not string.find(string.lower(newObj.Name), "egg") then
-                    newObj.Transparency = 1
+                -- Effects
+                if newObj:IsA("ParticleEmitter")
+                    or newObj:IsA("Trail")
+                    or newObj:IsA("Beam")
+                    or newObj:IsA("Smoke")
+                    or newObj:IsA("Fire")
+                    or newObj:IsA("Sparkles") then
+
+                    newObj.Enabled = false
+
+                elseif newObj:IsA("Light")
+                    or newObj:IsA("Highlight") then
+
+                    newObj.Enabled = false
+
+                elseif newObj:IsA("Animator") then
+
+                    StopAnimator(newObj)
+
+                elseif newObj:IsA("Decal")
+                    or newObj:IsA("Texture") then
+
+                    if not string.find(
+                        string.lower(newObj.Name),
+                        "egg"
+                    ) then
+                        newObj.Transparency = 1
+                    end
+
+                elseif newObj:IsA("BasePart") then
+
+                    newObj.CastShadow = false
+                    newObj.Reflectance = 0
+
+                    local isEgg =
+                        string.find(
+                            string.lower(newObj.Name),
+                            "egg"
+                        ) ~= nil
+
+                    if not isEgg then
+                        newObj.Material =
+                            Enum.Material.SmoothPlastic
+                    end
+
+                    if newObj:IsA("MeshPart") then
+                        pcall(function()
+                            newObj.RenderFidelity =
+                                Enum.RenderFidelity.Performance
+                        end)
+                    end
+
+                elseif newObj:IsA("SurfaceAppearance") then
+
+                    pcall(function()
+                        newObj:Destroy()
+                    end)
                 end
-            end
+            end)
         end)
-    end)
 
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "FPS Booster",
-        Text = "FPS Booster Active!",
-        Duration = 3
-    })
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "FPS Booster",
+            Text = "Ultra Potato Mode Active!",
+            Duration = 3
+        })
+    end)
 end)
 
 MakeButton(pSystem, "Destroy GUI", 6, DestroyAll)
