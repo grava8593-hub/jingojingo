@@ -2103,7 +2103,6 @@ end)
 
 MakeButton(pSystem, "FPS Booster", 5, function()
     pcall(function()
-        RunService:Set3dRenderingEnabled(true)
         settings().Rendering.QualityLevel = 1
         local lighting = game:GetService("Lighting")
         lighting.GlobalShadows = false
@@ -2118,77 +2117,63 @@ MakeButton(pSystem, "FPS Booster", 5, function()
 
         local terrain = Workspace:FindFirstChildOfClass("Terrain")
         if terrain then
-            pcall(function()
-                terrain.Decoration = false
-                terrain.WaterWaveSize = 0
-                terrain.WaterWaveSpeed = 0
-                terrain.WaterReflectance = 0
-                terrain.WaterTransparency = 0
-            end)
+            terrain.Decoration = false
+            terrain.WaterWaveSize = 0
+            terrain.WaterWaveSpeed = 0
+            terrain.WaterReflectance = 0
+            terrain.WaterTransparency = 0
         end
 
-        local function CleanCharacter(char)
-            if not char or char == LP.Character then return end
+        local function StripObject(obj)
+            if not obj or (LP.Character and obj:IsDescendantOf(LP.Character)) then return end
             pcall(function()
-                for _, obj in ipairs(char:GetDescendants()) do
-                    if obj:IsA("BasePart") then
+                if obj:IsA("Animator") or obj:IsA("AnimationController") then
+                    for _, t in ipairs(obj:GetPlayingAnimationTracks()) do t:Stop(0) end
+                    obj:Destroy()
+                elseif obj:IsA("SurfaceAppearance") then
+                    obj:Destroy()
+                elseif obj:IsA("MeshPart") then
+                    obj.TextureID = ""
+                    obj.Material = Enum.Material.SmoothPlastic
+                    obj.CastShadow = false
+                elseif obj:IsA("SpecialMesh") then
+                    obj.TextureId = ""
+                elseif obj:IsA("BasePart") then
+                    obj.Material = Enum.Material.SmoothPlastic
+                    obj.CastShadow = false
+                    obj.Reflectance = 0
+                    local parentModel = obj:FindFirstAncestorOfClass("Model")
+                    if parentModel and parentModel:FindFirstChildOfClass("Humanoid") and parentModel ~= LP.Character then
                         obj.Transparency = 1
-                        obj.CastShadow = false
                         obj.CanCollide = false
-                    elseif obj:IsA("Decal") or obj:IsA("Texture") then
-                        obj.Transparency = 1
-                    elseif obj:IsA("BillboardGui") or obj:IsA("SurfaceGui") or obj:IsA("Highlight") then
+                    end
+                elseif obj:IsA("Decal") or obj:IsA("Texture") then
+                    obj.Transparency = 1
+                elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") or obj:IsA("Smoke") or obj:IsA("Fire") or obj:IsA("Sparkles") then
+                    obj.Enabled = false
+                elseif obj:IsA("Light") then
+                    obj.Enabled = false
+                elseif obj:IsA("BillboardGui") or obj:IsA("SurfaceGui") then
+                    local pModel = obj:FindFirstAncestorOfClass("Model")
+                    if pModel and pModel ~= LP.Character then
                         obj.Enabled = false
-                    elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") or obj:IsA("Smoke") or obj:IsA("Fire") or obj:IsA("Sparkles") then
-                        obj.Enabled = false
-                    elseif obj:IsA("Animator") then
-                        for _, track in ipairs(obj:GetPlayingAnimationTracks()) do
-                            track:Stop(0)
-                        end
                     end
                 end
             end)
         end
 
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= LP then
-                CleanCharacter(plr.Character)
-                plr.CharacterAdded:Connect(function(newChar)
-                    task.wait(0.2)
-                    CleanCharacter(newChar)
-                end)
-            end
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            StripObject(obj)
         end
-        Players.PlayerAdded:Connect(function(plr)
-            plr.CharacterAdded:Connect(function(newChar)
-                task.wait(0.2)
-                CleanCharacter(newChar)
-            end)
+
+        Workspace.DescendantAdded:Connect(function(newObj)
+            task.wait()
+            StripObject(newObj)
         end)
-
-        for _, v in ipairs(Workspace:GetDescendants()) do
-            if not v:IsDescendantOf(LP.Character) then
-                if v:IsA("BasePart") then
-                    v.Material = Enum.Material.SmoothPlastic
-                    v.CastShadow = false
-                    v.Reflectance = 0
-                elseif v:IsA("Decal") or v:IsA("Texture") then
-                    v.Transparency = 1
-                elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles") then
-                    v.Enabled = false
-                elseif v:IsA("Light") then
-                    v.Enabled = false
-                elseif v:IsA("Animator") then
-                    for _, track in ipairs(v:GetPlayingAnimationTracks()) do
-                        track:Stop(0)
-                    end
-                end
-            end
-        end
 
         game:GetService("StarterGui"):SetCore("SendNotification", {
             Title = "FPS Boosted!",
-            Text = "Potato Mode Active! Smooth & No Lag!",
+            Text = "FPS Booster Active!",
             Duration = 4
         })
     end)
