@@ -470,37 +470,50 @@ end
 
 local function PerformInstantPickup(egg)
     local root = GetRoot()
-    if not root then return false end
+    if not root or not egg or not egg.Part then return false end
 
-    local baseCFrame = State.BaseCFrame or FindMyPlot()
-    if baseCFrame and (root.Position - baseCFrame.Position).Magnitude > 15 then
-        root.CFrame = baseCFrame + Vector3.new(0, 2.5, 0)
-        root.AssemblyLinearVelocity = Vector3.zero
-    end
+    -- 1. Teleport instan langsung ke dekat telur agar lolos batas 90 studs server
+    root.CFrame = CFrame.new(egg.Part.Position + Vector3.new(0, 2.5, 0))
+    root.AssemblyLinearVelocity = Vector3.zero
+    task.wait(0.05)
 
     local uuid = egg.UUID or GetEggUUID(egg.Object)
 
+    -- 2. Tembak Remote Pickup & Touch
     if EggPickupRemote then
         if uuid then
             SafeFire(EggPickupRemote, uuid)
-        end
-        SafeFire(EggPickupRemote, egg.Object)
-        if egg.Part then
+        else
+            SafeFire(EggPickupRemote, egg.Object)
             SafeFire(EggPickupRemote, egg.Part)
         end
     end
 
+    if firetouchinterest and root and egg.Part then
+        pcall(function()
+            firetouchinterest(root, egg.Part, 0)
+            firetouchinterest(root, egg.Part, 1)
+        end)
+    end
+
     for _, prompt in ipairs(egg.Object:GetDescendants()) do
         if prompt:IsA("ProximityPrompt") then
-            pcall(function()
-                prompt.MaxActivationDistance = 99999
-                prompt.RequiresLineOfSight = false
-                if fireproximityprompt then
-                    fireproximityprompt(prompt)
-                end
-            end)
+            TriggerPromptInstant(prompt)
         end
     end
+
+    ClickOrActivateEgg()
+
+    local startWait = os.clock()
+    while os.clock() - startWait < 0.6 do
+        if IsCarryingEgg() or not egg.Object:IsDescendantOf(Workspace) or (egg.Part and egg.Part.Transparency >= 0.9) then
+            return true
+        end
+        task.wait(0.05)
+    end
+
+    return IsCarryingEgg() or not egg.Object:IsDescendantOf(Workspace)
+end
 
     if firetouchinterest and root and egg.Part then
         pcall(function()
