@@ -183,7 +183,7 @@ local function TriggerPromptInstant(prompt)
         if fireproximityprompt then fireproximityprompt(prompt) end
         if prompt.InputHoldBegin and prompt.InputHoldEnd then
             prompt:InputHoldBegin()
-            task.wait(0.15)
+            task.wait(0.25)
             prompt:InputHoldEnd()
         end
     end)
