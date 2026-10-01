@@ -147,7 +147,7 @@ local State = {
     EggESP       = false,
     Flying       = false,
     FlySpeed     = 75,
-    ReturnSpeed  = 250,
+    ReturnSpeed  = 500,
     WalkSpeed    = 16,
     JumpPower    = 50,
     BaseCFrame   = nil,
@@ -2101,8 +2101,9 @@ MakeButton(pSystem, "Rejoin Current Server", 4, function()
     end
 end)
 
-MakeButton(pSystem, "Boost FPS (Hide Players & Anims)", 5, function()
+MakeButton(pSystem, "FPS Booster", 5, function()
     pcall(function()
+        RunService:Set3dRenderingEnabled(true)
         settings().Rendering.QualityLevel = 1
         local lighting = game:GetService("Lighting")
         lighting.GlobalShadows = false
@@ -2186,27 +2187,14 @@ MakeButton(pSystem, "Boost FPS (Hide Players & Anims)", 5, function()
         end
 
         game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "Ultra FPS Boosted!",
-            Text = "Players & animations hidden, zero lag!",
+            Title = "FPS Boosted!",
+            Text = "Potato Mode Active! Smooth & No Lag!",
             Duration = 4
         })
     end)
 end)
 
-local rendering3d = true
-MakeButton(pSystem, "Toggle 3D Rendering (AFK GPU 0%)", 6, function()
-    rendering3d = not rendering3d
-    pcall(function()
-        RunService:Set3dRenderingEnabled(rendering3d)
-    end)
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "3D Render Mode",
-        Text = rendering3d and "3D Rendering: ON" or "3D Rendering: OFF (0% GPU AFK)",
-        Duration = 3
-    })
-end)
-
-MakeButton(pSystem, "Destroy GUI", 7, DestroyAll)
+MakeButton(pSystem, "Destroy GUI", 6, DestroyAll)
 
 game:GetService("StarterGui"):SetCore("SendNotification", {
     Title = "Erdeva Hub",
