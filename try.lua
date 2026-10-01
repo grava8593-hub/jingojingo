@@ -2102,84 +2102,13 @@ MakeButton(pSystem, "Rejoin Current Server", 4, function()
 end)
 
 MakeButton(pSystem, "FPS Booster", 5, function()
-    _G.PotatoActive = not _G.PotatoActive
-    _G.HiddenEntities = _G.HiddenEntities or {}
-    _G.OriginalLighting = _G.OriginalLighting or {
-        GlobalShadows = Lighting.GlobalShadows,
-        FogEnd = Lighting.FogEnd,
-        Brightness = Lighting.Brightness,
-        Effects = {}
-    }
-
-    local function RestoreNormal()
-        _G.PotatoActive = false
-        if _G.PotatoConn then
-            _G.PotatoConn:Disconnect()
-            _G.PotatoConn = nil
-        end
-
-        pcall(function()
-            Lighting.GlobalShadows = _G.OriginalLighting.GlobalShadows
-            Lighting.FogEnd = _G.OriginalLighting.FogEnd
-            Lighting.Brightness = _G.OriginalLighting.Brightness
-            for obj, state in pairs(_G.OriginalLighting.Effects) do
-                if obj and obj.Parent then obj.Enabled = state end
-            end
-        end)
-
-        pcall(function()
-            local terrain = Workspace:FindFirstChildOfClass("Terrain")
-            if terrain then
-                terrain.Decoration = true
-                terrain.WaterWaveSize = 0.15
-                terrain.WaterWaveSpeed = 10
-            end
-        end)
-
-        pcall(function()
-            for obj, origVal in pairs(_G.HiddenEntities) do
-                if obj and obj.Parent then
-                    if obj:IsA("BasePart") then
-                        if typeof(origVal) == "EnumItem" then
-                            obj.Material = origVal
-                        else
-                            obj.Transparency = origVal or 0
-                            obj.CanCollide = true
-                        end
-                    elseif obj:IsA("Decal") or obj:IsA("Texture") then
-                        obj.Transparency = origVal or 0
-                    elseif obj:IsA("BillboardGui") or obj:IsA("SurfaceGui") or obj:IsA("Highlight") or obj:IsA("Light") or obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") or obj:IsA("Smoke") or obj:IsA("Fire") or obj:IsA("Sparkles") then
-                        obj.Enabled = (origVal ~= nil) and origVal or true
-                    end
-                end
-            end
-            table.clear(_G.HiddenEntities)
-        end)
-    end
-    _G.RestorePotatoNormal = RestoreNormal
-
-    if not _G.PotatoActive then
-        RestoreNormal()
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "FPS Booster",
-            Text = "FPS Booster OFF!",
-            Duration = 3
-        })
-        return
-    end
-
     pcall(function()
-        _G.OriginalLighting.GlobalShadows = Lighting.GlobalShadows
-        _G.OriginalLighting.FogEnd = Lighting.FogEnd
-        _G.OriginalLighting.Brightness = Lighting.Brightness
-        Lighting.GlobalShadows = false
-        Lighting.FogEnd = 9e9
-        Lighting.Brightness = 1
-        for _, v in ipairs(Lighting:GetChildren()) do
+        local lighting = game:GetService("Lighting")
+        lighting.GlobalShadows = false
+        lighting.FogEnd = 9e9
+        lighting.Brightness = 1
+        for _, v in ipairs(lighting:GetChildren()) do
             if v:IsA("PostEffect") or v:IsA("Atmosphere") or v:IsA("Clouds") then
-                if _G.OriginalLighting.Effects[v] == nil then
-                    _G.OriginalLighting.Effects[v] = v.Enabled
-                end
                 v.Enabled = false
             end
         end
@@ -2201,33 +2130,28 @@ MakeButton(pSystem, "FPS Booster", 5, function()
         pcall(function()
             for _, obj in ipairs(model:GetDescendants()) do
                 if obj:IsA("BasePart") then
-                    if obj.Name ~= "HumanoidRootPart" and not _G.HiddenEntities[obj] then
-                        _G.HiddenEntities[obj] = obj.Transparency
-                        obj.Transparency = 1
-                    end
+                    obj.Transparency = 1
                     obj.CastShadow = false
                     obj.CanCollide = false
                 elseif obj:IsA("Decal") or obj:IsA("Texture") then
-                    if not _G.HiddenEntities[obj] then _G.HiddenEntities[obj] = obj.Transparency end
                     obj.Transparency = 1
                 elseif obj:IsA("BillboardGui") or obj:IsA("SurfaceGui") or obj:IsA("Highlight") then
-                    if not _G.HiddenEntities[obj] then _G.HiddenEntities[obj] = obj.Enabled end
                     obj.Enabled = false
                 elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") or obj:IsA("Smoke") or obj:IsA("Fire") or obj:IsA("Sparkles") then
-                    if not _G.HiddenEntities[obj] then _G.HiddenEntities[obj] = obj.Enabled end
                     obj.Enabled = false
                 elseif obj:IsA("Animator") or obj:IsA("AnimationController") then
                     pcall(function()
                         for _, track in ipairs(obj:GetPlayingAnimationTracks()) do
-                            track:AdjustSpeed(0)
                             track:Stop(0)
                         end
+                        obj:Destroy()
                     end)
                 end
             end
         end)
     end
 
+    -- Target NPC Hasil Scan (Stalls & Functionals)
     pcall(function()
         local stalls = Workspace:FindFirstChild("Stalls")
         if stalls then
@@ -2245,56 +2169,59 @@ MakeButton(pSystem, "FPS Booster", 5, function()
         end
     end)
 
+    -- Sembunyikan Player Lain & Karakter yang Baru Spawn
     pcall(function()
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LP and plr.Character then
                 HideEntity(plr.Character)
             end
         end
+        Players.PlayerAdded:Connect(function(plr)
+            plr.CharacterAdded:Connect(function(char)
+                task.wait(0.2)
+                HideEntity(char)
+            end)
+        end)
     end)
 
+    -- Hentikan & Musnahkan Semua Animasi (Pet Phoenix, Cerberus, Kitsune, dll)
     pcall(function()
         for _, obj in ipairs(Workspace:GetDescendants()) do
             if not obj:IsDescendantOf(LP.Character) then
                 if obj:IsA("Animator") or obj:IsA("AnimationController") then
                     pcall(function()
                         for _, track in ipairs(obj:GetPlayingAnimationTracks()) do
-                            track:AdjustSpeed(0)
                             track:Stop(0)
                         end
+                        obj:Destroy()
                     end)
                 end
             end
         end
     end)
 
-    -- Potato Mode Map
+    -- Potato Mode Map: SmoothPlastic, No Shadow, Matikan 239 Partikel & 77 Lampu
     pcall(function()
         for _, v in ipairs(Workspace:GetDescendants()) do
             if not v:IsDescendantOf(LP.Character) then
                 local isEgg = string.find(string.lower(v.Name), "egg")
                 if v:IsA("BasePart") and not isEgg then
-                    if not _G.HiddenEntities[v] then _G.HiddenEntities[v] = v.Material end
                     v.Material = Enum.Material.SmoothPlastic
                     v.CastShadow = false
                     v.Reflectance = 0
                 elseif (v:IsA("Decal") or v:IsA("Texture")) and not isEgg then
-                    if not _G.HiddenEntities[v] then _G.HiddenEntities[v] = v.Transparency end
                     v.Transparency = 1
                 elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles") then
-                    if not _G.HiddenEntities[v] then _G.HiddenEntities[v] = v.Enabled end
                     v.Enabled = false
                 elseif v:IsA("Light") or v:IsA("Highlight") then
-                    if not _G.HiddenEntities[v] then _G.HiddenEntities[v] = v.Enabled end
                     v.Enabled = false
                 end
             end
         end
     end)
 
-    if _G.PotatoConn then _G.PotatoConn:Disconnect() end
-    _G.PotatoConn = Workspace.DescendantAdded:Connect(function(newObj)
-        if not _G.PotatoActive then return end
+    -- Auto-cleaner jika ada efek / pet / animator baru yang muncul
+    Workspace.DescendantAdded:Connect(function(newObj)
         if not newObj:IsDescendantOf(LP.Character) then
             pcall(function()
                 if newObj:IsA("ParticleEmitter") or newObj:IsA("Trail") or newObj:IsA("Beam") or newObj:IsA("Smoke") or newObj:IsA("Fire") or newObj:IsA("Sparkles") then
@@ -2303,9 +2230,9 @@ MakeButton(pSystem, "FPS Booster", 5, function()
                     newObj.Enabled = false
                 elseif newObj:IsA("Animator") or newObj:IsA("AnimationController") then
                     for _, track in ipairs(newObj:GetPlayingAnimationTracks()) do
-                        track:AdjustSpeed(0)
                         track:Stop(0)
                     end
+                    newObj:Destroy()
                 elseif (newObj:IsA("Decal") or newObj:IsA("Texture")) and not string.find(string.lower(newObj.Name), "egg") then
                     newObj.Transparency = 1
                 end
@@ -2315,7 +2242,7 @@ MakeButton(pSystem, "FPS Booster", 5, function()
 
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = "FPS Booster",
-        Text = "FPS Booster Active!",
+        Text = "FPS Booster Active!.",
         Duration = 4
     })
 end)
