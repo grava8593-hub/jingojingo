@@ -176,32 +176,14 @@ local function GetHum()
     return char and char:FindFirstChildOfClass("Humanoid")
 end
 
-local function SetCharacterNoclip(enable)
-    local char = LP.Character
-    if not char then return end
-    pcall(function()
-        for _, part in ipairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = not enable
-            end
-        end
-    end)
-end
-
 local function TriggerPromptInstant(prompt)
     if not prompt or not prompt:IsA("ProximityPrompt") then return end
     pcall(function()
-        prompt.RequiresLineOfSight = false
-        prompt.MaxActivationDistance = 99999
-
-        if fireproximityprompt then
-            pcall(function() fireproximityprompt(prompt) end)
-        end
-
+        prompt.MaxActivationDistance = 999
+        if fireproximityprompt then fireproximityprompt(prompt) end
         if prompt.InputHoldBegin and prompt.InputHoldEnd then
             prompt:InputHoldBegin()
-            local holdTime = math.max(prompt.HoldDuration or 0.2, 0.2)
-            task.wait(holdTime + 0.1)
+            task.wait(0.25)
             prompt:InputHoldEnd()
         end
     end)
@@ -231,32 +213,27 @@ local function ClickOrActivateEgg()
     end
 end
 
-local carryTimeout = 0
-
 local function IsCarryingEgg()
-    if carryTimeout > 0 and (os.clock() - carryTimeout) > 4 then
-        return false
-    end
-
     local char = LP.Character
     if not char then return false end
 
     if char:FindFirstChild("HeldEggDisplay") then
-        if carryTimeout == 0 then carryTimeout = os.clock() end
         return true
     end
 
+    for _, tool in ipairs(char:GetChildren()) do
+        if tool:IsA("Tool") and string.find(string.lower(tool.Name), "egg") then
+            return true
+        end
+    end
     for _, item in ipairs(char:GetChildren()) do
         if item:IsA("Model") and item ~= char then
             local n = string.lower(item.Name)
-            if string.find(n, "egg") and not string.find(n, "pet") and not string.find(n, "mount") and not string.find(n, "nest") and not string.find(n, "character") then
-                if carryTimeout == 0 then carryTimeout = os.clock() end
+            if string.find(n, "egg") and not string.find(n, "pet") and not string.find(n, "mount") and not string.find(n, "nest") then
                 return true
             end
         end
     end
-
-    carryTimeout = 0
     return false
 end
 
@@ -341,27 +318,12 @@ local function GetEggUUID(eggObj)
     return nil
 end
 
-local LairDoorPosition = Vector3.new(-4964.66, 41290.65, -3663.98)
-
-local function CheckAndPassDoor(egg)
-    local root = GetRoot()
-    if not root or not egg or not egg.Part then return end
-    local isLairEgg = string.find(string.lower(egg.Name), "volcan") or (egg.Part.Position - Vector3.new(-5329, 40911, -3580)).Magnitude < 400
-    if isLairEgg then
-        SetCharacterNoclip(true)
-        root.CFrame = CFrame.new(LairDoorPosition)
-        root.AssemblyLinearVelocity = Vector3.zero
-        task.wait(0.2)
-    end
-end
-
 local function SnapToTarget(targetPos)
     local root = GetRoot()
     if not root then return end
-    SetCharacterNoclip(true)
-    root.CFrame = CFrame.new(targetPos + Vector3.new(0, 0.5, 0))
+    root.CFrame = CFrame.new(targetPos + Vector3.new(0, 2.5, 0))
     root.AssemblyLinearVelocity = Vector3.zero
-    task.wait(0.04)
+    task.wait(0.05)
 end
 
 local function GlideToBaseSafe(basePos)
@@ -400,6 +362,9 @@ local function FindEggsInMap()
 
     local baseCFrame = State.BaseCFrame or FindMyPlot()
     local basePos = baseCFrame and baseCFrame.Position or Vector3.zero
+    local myPlotObj = State.PlotObject
+
+    local blacklist = {"tracker", "stand", "pedestal", "shop", "store", "display", "base", "nest", "plot", "buy", "sample", "plant", "incubator", "spawn", "eggspawn"}
 
     local now = os.clock()
     for k, expire in pairs(IgnoredEggs) do
@@ -408,39 +373,59 @@ local function FindEggsInMap()
 
     if not HasAnyEggSelected() then return list end
 
-    local targetFolder = Workspace:FindFirstChild("RenderedEggs") or Workspace
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if not IgnoredEggs[obj] and (obj:IsA("Model") or (obj:IsA("BasePart") and not obj.Parent:IsA("Model"))) then
+            
+            local inAnyPlot = obj:FindFirstAncestor("Plots") or obj:FindFirstAncestor("PlayerPlots")
+            if myPlotObj and obj:IsDescendantOf(myPlotObj) then
+                inAnyPlot = true
+            end
 
-    for _, obj in ipairs(targetFolder:GetChildren()) do
-        if not IgnoredEggs[obj] and (obj:IsA("Model") or obj:IsA("BasePart")) then
-            local selected, eggName, eggTier = IsEggSelected(obj.Name)
-            if selected then
-                local hasPickUpPrompt = false
-                for _, prompt in ipairs(obj:GetDescendants()) do
-                    if prompt:IsA("ProximityPrompt") then
-                        local act = string.lower(prompt.ActionText)
-                        if string.find(act, "pick") or string.find(act, "ambil") or string.find(act, "take") then
-                            hasPickUpPrompt = true
+            local isBlack = false
+            local ancestor = obj
+            while ancestor and ancestor ~= Workspace do
+                local aName = string.lower(ancestor.Name)
+                for _, word in ipairs(blacklist) do
+                    if string.find(aName, word) then
+                        isBlack = true
+                        break
+                    end
+                end
+                if isBlack then break end
+                ancestor = ancestor.Parent
+            end
+
+            if not inAnyPlot and not isBlack and not obj:IsDescendantOf(LP.Character) then
+                local selected, eggName, eggTier = IsEggSelected(obj.Name)
+                if selected then
+                    local hasPickupPrompt = false
+                    for _, pr in ipairs(obj:GetDescendants()) do
+                        if pr:IsA("ProximityPrompt") then
+                            hasPickupPrompt = true
                             break
                         end
                     end
-                end
+                    if not hasPickupPrompt and obj:IsA("BasePart") and obj:FindFirstChildWhichIsA("ProximityPrompt") then
+                        hasPickupPrompt = true
+                    end
 
-                if hasPickUpPrompt or obj.Parent.Name == "RenderedEggs" then
-                    local p = obj:IsA("BasePart") and obj or (obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart"))
-                    if p and not IgnoredEggs[p] then
-                        local distToBase = (basePos ~= Vector3.zero) and (p.Position - basePos).Magnitude or 999
-                        if distToBase > 60 then
-                            local dist = (myPos - p.Position).Magnitude
-                            local tierVal = TierPriority[eggTier] or 1
-                            table.insert(list, {
-                                Object    = obj,
-                                Part      = p,
-                                Name      = eggName,
-                                Tier      = eggTier,
-                                Priority  = tierVal,
-                                Distance  = dist,
-                                UUID      = GetEggUUID(obj)
-                            })
+                    if hasPickupPrompt then
+                        local p = obj:IsA("BasePart") and obj or (obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart"))
+                        if p and p.Transparency < 0.9 and not IgnoredEggs[p] then
+                            local distToBase = (p.Position - basePos).Magnitude
+                            if distToBase > 120 then
+                                local dist = (myPos - p.Position).Magnitude
+                                local tierVal = TierPriority[eggTier] or 1
+                                table.insert(list, {
+                                    Object    = obj,
+                                    Part      = p,
+                                    Name      = eggName,
+                                    Tier      = eggTier,
+                                    Priority  = tierVal,
+                                    Distance  = dist,
+                                    UUID      = GetEggUUID(obj)
+                                })
+                            end
                         end
                     end
                 end
@@ -456,15 +441,20 @@ local function FindEggsInMap()
     return list
 end
 
+local LairDoorPosition = Vector3.new(-4964.66, 41290.65, -3663.98)
+
 local function PerformEggPickup(egg)
     local root = GetRoot()
-    if not root or not egg or not egg.Part then return false end
+    if not root then return false end
 
-    CheckAndPassDoor(egg)
+    if string.find(string.lower(egg.Name), "volcan") then
+        root.CFrame = CFrame.new(LairDoorPosition)
+        root.AssemblyLinearVelocity = Vector3.zero
+        task.wait(0.3)
+    end
 
-    SetCharacterNoclip(true)
     SnapToTarget(egg.Part.Position)
-    task.wait(0.12)
+    task.wait(0.4)
 
     for _, prompt in ipairs(egg.Object:GetDescendants()) do
         if prompt:IsA("ProximityPrompt") then
@@ -475,7 +465,6 @@ local function PerformEggPickup(egg)
     if firetouchinterest and root and egg.Part then
         pcall(function()
             firetouchinterest(root, egg.Part, 0)
-            task.wait()
             firetouchinterest(root, egg.Part, 1)
         end)
     end
@@ -493,13 +482,12 @@ local function PerformEggPickup(egg)
     ClickOrActivateEgg()
 
     local startWait = os.clock()
-    while os.clock() - startWait < 0.9 do
-        SetCharacterNoclip(true)
+    while os.clock() - startWait < 1.0 do
         if IsCarryingEgg() or not egg.Object:IsDescendantOf(Workspace) or (egg.Part and egg.Part.Transparency >= 0.9) then
             ClickOrActivateEgg()
             return true
         end
-        task.wait(0.08)
+        task.wait(0.1)
     end
 
     return IsCarryingEgg()
@@ -509,12 +497,26 @@ local function PerformInstantPickup(egg)
     local root = GetRoot()
     if not root or not egg or not egg.Part then return false end
 
-    CheckAndPassDoor(egg)
+    if string.find(string.lower(egg.Name), "volcan") then
+        root.CFrame = CFrame.new(LairDoorPosition)
+        root.AssemblyLinearVelocity = Vector3.zero
+        task.wait(0.3)
+    end
 
-    SetCharacterNoclip(true)
-    root.CFrame = CFrame.new(egg.Part.Position + Vector3.new(0, 0.5, 0))
+    root.CFrame = CFrame.new(egg.Part.Position + Vector3.new(0, 2.5, 0))
     root.AssemblyLinearVelocity = Vector3.zero
     task.wait(0.04)
+
+    local uuid = egg.UUID or GetEggUUID(egg.Object)
+
+    if EggPickupRemote then
+        if uuid then
+            SafeFire(EggPickupRemote, uuid)
+        else
+            SafeFire(EggPickupRemote, egg.Object)
+            SafeFire(EggPickupRemote, egg.Part)
+        end
+    end
 
     for _, prompt in ipairs(egg.Object:GetDescendants()) do
         if prompt:IsA("ProximityPrompt") then
@@ -530,21 +532,10 @@ local function PerformInstantPickup(egg)
         end)
     end
 
-    local uuid = egg.UUID or GetEggUUID(egg.Object)
-    if EggPickupRemote then
-        if uuid then
-            SafeFire(EggPickupRemote, uuid)
-        else
-            SafeFire(EggPickupRemote, egg.Object)
-            SafeFire(EggPickupRemote, egg.Part)
-        end
-    end
-
     ClickOrActivateEgg()
 
     local startWait = os.clock()
     while os.clock() - startWait < 0.6 do
-        SetCharacterNoclip(true)
         if IsCarryingEgg() or not egg.Object:IsDescendantOf(Workspace) or (egg.Part and egg.Part.Transparency >= 0.9) then
             return true
         end
@@ -1631,7 +1622,6 @@ MakeToggle(pHarvest, "Auto Farm", "Collect selected eggs & deliver to base", fal
                             local hum = GetHum()
                             if hum then hum:UnequipTools() end
                             deliveryAttempts = 0
-                            carryTimeout = os.clock() - 10
                             task.wait(0.2)
                         end
                     else
@@ -1723,7 +1713,6 @@ MakeToggle(pHarvest, "Instant Farm", "Instantly teleport to eggs and collect the
                             local hum = GetHum()
                             if hum then hum:UnequipTools() end
                             deliveryAttempts = 0
-                            carryTimeout = os.clock() - 10
                             task.wait(0.15)
                         end
                     else
