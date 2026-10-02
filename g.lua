@@ -176,7 +176,6 @@ local function GetHum()
     return char and char:FindFirstChildOfClass("Humanoid")
 end
 
--- Helper Noclip: Karakter tembus batu/tembok goa & tidak terpental keluar
 local function SetCharacterNoclip(enable)
     local char = LP.Character
     if not char then return end
@@ -201,7 +200,6 @@ local function TriggerPromptInstant(prompt)
 
         if prompt.InputHoldBegin and prompt.InputHoldEnd then
             prompt:InputHoldBegin()
-            -- Menyesuaikan durasi hold asli telur + toleransi ping
             local holdTime = math.max(prompt.HoldDuration or 0.2, 0.2)
             task.wait(holdTime + 0.1)
             prompt:InputHoldEnd()
@@ -233,24 +231,20 @@ local function ClickOrActivateEgg()
     end
 end
 
-local isDelivering = false
 local carryTimeout = 0
 
 local function IsCarryingEgg()
-    -- Kalau sudah lewat 5 detik bolak-balik ke nest tapi telurnya ga ilang, paksa anggap kosong biar ga stuck!
-    if carryTimeout > 0 and (os.clock() - carryTimeout) > 5 then
+    if carryTimeout > 0 and (os.clock() - carryTimeout) > 4 then
         return false
     end
 
     local char = LP.Character
     if not char then return false end
 
-    -- Telur liar yang dipungut biasanya nempel langsung sebagai Model/Part di Character (bukan Tool inventori)
     for _, item in ipairs(char:GetChildren()) do
         if item:IsA("Model") and item ~= char then
             local n = string.lower(item.Name)
-            -- Abaikan pet, mount, nest, dan tool
-            if string.find(n, "egg") and not string.find(n, "pet") and not string.find(n, "mount") and not string.find(n, "nest") then
+            if string.find(n, "egg") and not string.find(n, "pet") and not string.find(n, "mount") and not string.find(n, "nest") and not string.find(n, "character") then
                 if carryTimeout == 0 then carryTimeout = os.clock() end
                 return true
             end
@@ -258,18 +252,6 @@ local function IsCarryingEgg()
     end
 
     carryTimeout = 0
-    return false
-end
-
-    -- Cek di dalam Backpack / Tas
-    if bp then
-        for _, tool in ipairs(bp:GetChildren()) do
-            if tool:IsA("Tool") and string.find(string.lower(tool.Name), "egg") then
-                return true
-            end
-        end
-    end
-
     return false
 end
 
@@ -357,8 +339,8 @@ end
 local function SnapToTarget(targetPos)
     local root = GetRoot()
     if not root then return end
-    SetCharacterNoclip(true) -- Tembus rintangan goa
-    root.CFrame = CFrame.new(targetPos + Vector3.new(0, 0.5, 0)) -- Posisi sejajar telur, tidak mentok atap
+    SetCharacterNoclip(true)
+    root.CFrame = CFrame.new(targetPos + Vector3.new(0, 0.5, 0))
     root.AssemblyLinearVelocity = Vector3.zero
     task.wait(0.04)
 end
@@ -407,14 +389,12 @@ local function FindEggsInMap()
 
     if not HasAnyEggSelected() then return list end
 
-    -- TARGET UTAMA: Folder RenderedEggs (Tempat Resmi Telur Liar Spawn)
     local targetFolder = Workspace:FindFirstChild("RenderedEggs") or Workspace
 
     for _, obj in ipairs(targetFolder:GetChildren()) do
         if not IgnoredEggs[obj] and (obj:IsA("Model") or obj:IsA("BasePart")) then
             local selected, eggName, eggTier = IsEggSelected(obj.Name)
             if selected then
-                -- Pastikan ini telur liar (memiliki prompt Pick Up atau berada di RenderedEggs)
                 local hasPickUpPrompt = false
                 for _, prompt in ipairs(obj:GetDescendants()) do
                     if prompt:IsA("ProximityPrompt") then
@@ -426,12 +406,10 @@ local function FindEggsInMap()
                     end
                 end
 
-                -- Jika berada di RenderedEggs atau memiliki prompt Pick Up
                 if hasPickUpPrompt or obj.Parent.Name == "RenderedEggs" then
                     local p = obj:IsA("BasePart") and obj or (obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart"))
                     if p and not IgnoredEggs[p] then
-                        local distToBase = (p.Position - basePos).Magnitude
-                        -- Cegah mengambil telur yang sudah di base sendiri
+                        local distToBase = (basePos ~= Vector3.zero) and (p.Position - basePos).Magnitude or 999
                         if distToBase > 60 then
                             local dist = (myPos - p.Position).Magnitude
                             local tierVal = TierPriority[eggTier] or 1
@@ -458,23 +436,21 @@ local function FindEggsInMap()
 
     return list
 end
+
 local function PerformEggPickup(egg)
     local root = GetRoot()
     if not root or not egg or not egg.Part then return false end
 
-    -- Aktifkan Noclip agar tembus dinding goa/volcano
     SetCharacterNoclip(true)
     SnapToTarget(egg.Part.Position)
     task.wait(0.12)
 
-    -- Trigger ProximityPrompt telur (Bypass LineOfSight)
     for _, prompt in ipairs(egg.Object:GetDescendants()) do
         if prompt:IsA("ProximityPrompt") then
             TriggerPromptInstant(prompt)
         end
     end
 
-    -- Trigger Touch Interest pada part telur
     if firetouchinterest and root and egg.Part then
         pcall(function()
             firetouchinterest(root, egg.Part, 0)
@@ -483,7 +459,6 @@ local function PerformEggPickup(egg)
         end)
     end
 
-    -- Kirim Remote Pickup
     local uuid = egg.UUID or GetEggUUID(egg.Object)
     if EggPickupRemote then
         if uuid then
@@ -513,20 +488,17 @@ local function PerformInstantPickup(egg)
     local root = GetRoot()
     if not root or not egg or not egg.Part then return false end
 
-    -- Noclip aktif & mendarat pas di dekat telur
     SetCharacterNoclip(true)
     root.CFrame = CFrame.new(egg.Part.Position + Vector3.new(0, 0.5, 0))
     root.AssemblyLinearVelocity = Vector3.zero
     task.wait(0.04)
 
-    -- Bypass & trigger prompt
     for _, prompt in ipairs(egg.Object:GetDescendants()) do
         if prompt:IsA("ProximityPrompt") then
             TriggerPromptInstant(prompt)
         end
     end
 
-    -- Touch interest
     if firetouchinterest and root and egg.Part then
         pcall(function()
             firetouchinterest(root, egg.Part, 0)
@@ -1348,7 +1320,6 @@ ModalTitle.Parent = ModalBox
 local ModalCloseBtn = Instance.new("TextButton")
 ModalCloseBtn.Size = UDim2.fromOffset(18, 18)
 ModalCloseBtn.Position = UDim2.new(1, -30, 0, 4)
-
 ModalCloseBtn.Text = "X"
 ModalCloseBtn.TextColor3 = Color3.new(1, 1, 1)
 ModalCloseBtn.Font = Enum.Font.GothamBold
@@ -1637,6 +1608,7 @@ MakeToggle(pHarvest, "Auto Farm", "Collect selected eggs & deliver to base", fal
                             local hum = GetHum()
                             if hum then hum:UnequipTools() end
                             deliveryAttempts = 0
+                            carryTimeout = os.clock() - 10
                             task.wait(0.2)
                         end
                     else
@@ -1728,6 +1700,7 @@ MakeToggle(pHarvest, "Instant Farm", "Instantly teleport to eggs and collect the
                             local hum = GetHum()
                             if hum then hum:UnequipTools() end
                             deliveryAttempts = 0
+                            carryTimeout = os.clock() - 10
                             task.wait(0.15)
                         end
                     else
@@ -2203,7 +2176,6 @@ MakeButton(pSystem, "FPS Booster", 5, function()
         BoyBacon = true
     }
 
-    -- Hide NPC yang sudah ada
     pcall(function()
         local stalls = Workspace:FindFirstChild("Stalls")
         if stalls then
@@ -2226,7 +2198,6 @@ MakeButton(pSystem, "FPS Booster", 5, function()
         end
     end)
 
-    -- Hide player lain
     pcall(function()
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LP and plr.Character then
@@ -2241,7 +2212,6 @@ MakeButton(pSystem, "FPS Booster", 5, function()
         end)
     end)
 
-    -- Potato Mode
     pcall(function()
         for _, v in ipairs(Workspace:GetDescendants()) do
             if not v:IsDescendantOf(LP.Character) then
@@ -2270,7 +2240,6 @@ MakeButton(pSystem, "FPS Booster", 5, function()
         end
     end)
 
-    -- Proses object baru tanpa timer / task.wait
     Workspace.DescendantAdded:Connect(function(newObj)
         if newObj:IsDescendantOf(LP.Character) then
             return
