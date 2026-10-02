@@ -376,9 +376,6 @@ local function FindEggsInMap()
 
     local baseCFrame = State.BaseCFrame or FindMyPlot()
     local basePos = baseCFrame and baseCFrame.Position or Vector3.zero
-    local myPlotObj = State.PlotObject
-
-    local blacklist = {"tracker", "stand", "pedestal", "shop", "store", "display", "base", "nest", "plot", "buy", "sample", "plant", "incubator"}
 
     local now = os.clock()
     for k, expire in pairs(IgnoredEggs) do
@@ -387,46 +384,32 @@ local function FindEggsInMap()
 
     if not HasAnyEggSelected() then return list end
 
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if not IgnoredEggs[obj] and (obj:IsA("Model") or (obj:IsA("BasePart") and not obj.Parent:IsA("Model"))) then
-            
-            local inAnyPlot = obj:FindFirstAncestor("Plots") or obj:FindFirstAncestor("PlayerPlots")
-            if myPlotObj and obj:IsDescendantOf(myPlotObj) then
-                inAnyPlot = true
-            end
+    -- TARGET UTAMA: Folder RenderedEggs (Tempat Resmi Telur Liar Spawn)
+    local targetFolder = Workspace:FindFirstChild("RenderedEggs") or Workspace
 
-            local isBlack = false
-            local ancestor = obj
-            while ancestor and ancestor ~= Workspace do
-                local aName = string.lower(ancestor.Name)
-                for _, word in ipairs(blacklist) do
-                    if string.find(aName, word) then
-                        isBlack = true
-                        break
+    for _, obj in ipairs(targetFolder:GetChildren()) do
+        if not IgnoredEggs[obj] and (obj:IsA("Model") or obj:IsA("BasePart")) then
+            local selected, eggName, eggTier = IsEggSelected(obj.Name)
+            if selected then
+                -- Pastikan ini telur liar (memiliki prompt Pick Up atau berada di RenderedEggs)
+                local hasPickUpPrompt = false
+                for _, prompt in ipairs(obj:GetDescendants()) do
+                    if prompt:IsA("ProximityPrompt") then
+                        local act = string.lower(prompt.ActionText)
+                        if string.find(act, "pick") or string.find(act, "ambil") or string.find(act, "take") then
+                            hasPickUpPrompt = true
+                            break
+                        end
                     end
                 end
-                if isBlack then break end
-                ancestor = ancestor.Parent
-            end
 
-            if not inAnyPlot and not isBlack and not obj:IsDescendantOf(LP.Character) then
-                local selected, eggName, eggTier = IsEggSelected(obj.Name)
-                if selected then
-                    -- Cari Part Hitbox/Touch yang paling valid di dalam model telur
-                    local p = nil
-                    if obj:IsA("BasePart") then
-                        p = obj
-                    else
-                        p = obj:FindFirstChild("Hitbox") 
-                            or obj:FindFirstChild("Main") 
-                            or obj:FindFirstChild("Egg")
-                            or obj.PrimaryPart 
-                            or obj:FindFirstChildWhichIsA("BasePart")
-                    end
-
-                    if p and p.Transparency < 0.9 and not IgnoredEggs[p] then
+                -- Jika berada di RenderedEggs atau memiliki prompt Pick Up
+                if hasPickUpPrompt or obj.Parent.Name == "RenderedEggs" then
+                    local p = obj:IsA("BasePart") and obj or (obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart"))
+                    if p and not IgnoredEggs[p] then
                         local distToBase = (p.Position - basePos).Magnitude
-                        if distToBase > 120 then
+                        -- Cegah mengambil telur yang sudah di base sendiri
+                        if distToBase > 60 then
                             local dist = (myPos - p.Position).Magnitude
                             local tierVal = TierPriority[eggTier] or 1
                             table.insert(list, {
@@ -452,7 +435,6 @@ local function FindEggsInMap()
 
     return list
 end
-
 local function PerformEggPickup(egg)
     local root = GetRoot()
     if not root or not egg or not egg.Part then return false end
