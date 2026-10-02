@@ -192,16 +192,18 @@ end
 local function TriggerPromptInstant(prompt)
     if not prompt or not prompt:IsA("ProximityPrompt") then return end
     pcall(function()
-        -- TEMBUS TEMBOK: Matikan halangan pandang & perbesar jarak interaksi
         prompt.RequiresLineOfSight = false
         prompt.MaxActivationDistance = 99999
-        
-        if fireproximityprompt then 
-            fireproximityprompt(prompt) 
+
+        if fireproximityprompt then
+            pcall(function() fireproximityprompt(prompt) end)
         end
+
         if prompt.InputHoldBegin and prompt.InputHoldEnd then
             prompt:InputHoldBegin()
-            task.wait(0.12)
+            -- Menyesuaikan durasi hold asli telur + toleransi ping
+            local holdTime = math.max(prompt.HoldDuration or 0.2, 0.2)
+            task.wait(holdTime + 0.1)
             prompt:InputHoldEnd()
         end
     end)
@@ -233,20 +235,34 @@ end
 
 local function IsCarryingEgg()
     local char = LP.Character
-    if not char then return false end
-    for _, tool in ipairs(char:GetChildren()) do
-        if tool:IsA("Tool") and string.find(string.lower(tool.Name), "egg") then
-            return true
+    local bp = LP:FindFirstChild("Backpack")
+
+    -- Cek di tangan karakter
+    if char then
+        for _, tool in ipairs(char:GetChildren()) do
+            if tool:IsA("Tool") and string.find(string.lower(tool.Name), "egg") then
+                return true
+            end
+        end
+        for _, item in ipairs(char:GetChildren()) do
+            if item:IsA("Model") and item ~= char then
+                local n = string.lower(item.Name)
+                if string.find(n, "egg") and not string.find(n, "pet") and not string.find(n, "mount") and not string.find(n, "nest") then
+                    return true
+                end
+            end
         end
     end
-    for _, item in ipairs(char:GetChildren()) do
-        if item:IsA("Model") and item ~= char then
-            local n = string.lower(item.Name)
-            if string.find(n, "egg") and not string.find(n, "pet") and not string.find(n, "mount") and not string.find(n, "nest") then
+
+    -- Cek di dalam Backpack / Tas
+    if bp then
+        for _, tool in ipairs(bp:GetChildren()) do
+            if tool:IsA("Tool") and string.find(string.lower(tool.Name), "egg") then
                 return true
             end
         end
     end
+
     return false
 end
 
