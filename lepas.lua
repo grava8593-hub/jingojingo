@@ -1,0 +1,2320 @@
+local Players = game:GetService("Players")
+local RS = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UIS = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+local Workspace = game:GetService("Workspace")
+local VirtualUser = game:GetService("VirtualUser")
+
+local LP = Players.LocalPlayer
+local PlayerGui = LP:WaitForChild("PlayerGui")
+
+local targetParent = CoreGui
+if not pcall(function() Instance.new("Folder", CoreGui):Destroy() end) then
+    targetParent = PlayerGui
+end
+
+if targetParent:FindFirstChild("ErdevaRideAPet") then
+    targetParent.ErdevaRideAPet:Destroy()
+end
+
+pcall(function()
+    LP.Idled:Connect(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.zero)
+    end)
+end)
+
+local iconPath = "ErdevaHubIcon.png"
+if not isfile(iconPath) then
+    pcall(function()
+        writefile(iconPath, game:HttpGet("https://raw.githubusercontent.com/voxynoxy/ErdevaHub/main/icon.png"))
+    end)
+end
+local hubCustomIcon = isfile(iconPath) and getcustomasset(iconPath) or "rbxassetid://6031075931"
+
+local discordIconPath = "ErdevaDiscordIcon.png"
+
+pcall(function()
+    if isfile(discordIconPath) then
+        delfile(discordIconPath)
+    end
+
+    writefile(
+        discordIconPath,
+        game:HttpGet("https://raw.githubusercontent.com/grava8593-hub/icon/main/dcicon.png")
+    )
+end)
+
+local discordCustomIcon = isfile(discordIconPath) and getcustomasset(discordIconPath) or ""
+
+local Remotes = RS:WaitForChild("Remotes", 10)
+local GameRemotes = Remotes and Remotes:FindFirstChild("Game")
+local ReusableRemotes = Remotes and Remotes:FindFirstChild("Reusable")
+local PlotRemotes = GameRemotes and GameRemotes:FindFirstChild("Plot")
+
+local EggPickupRemote     = GameRemotes and GameRemotes:FindFirstChild("EggPickup")
+local EggArrivalClaimRem  = GameRemotes and GameRemotes:FindFirstChild("EggArrivalClaim")
+local EggPlacedRemote     = GameRemotes and GameRemotes:FindFirstChild("EggPlaced")
+local RequestPlotEggsRem  = GameRemotes and GameRemotes:FindFirstChild("RequestPlotEggs")
+local BasketDropRemote    = GameRemotes and GameRemotes:FindFirstChild("BasketDrop")
+local EggBrokeRemote      = GameRemotes and GameRemotes:FindFirstChild("EggBroke")
+
+pcall(function()
+    local oldNamecall
+    oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        if (method == "FireServer" or method == "InvokeServer") and typeof(self) == "Instance" then
+            if self == EggBrokeRemote or string.lower(self.Name) == "eggbroke" then
+                return nil
+            end
+        end
+        return oldNamecall(self, ...)
+    end))
+end)
+
+local AllEggList = {
+    {name = "Blackhole Egg", tier = "Godly"},
+    {name = "Bloom Egg", tier = "Godly"},
+    {name = "Volcanic Egg", tier = "Godly"},
+    {name = "Solaris Egg", tier = "Godly"},
+    {name = "Galaxy Egg", tier = "Legendary"},
+    {name = "Aurora Egg", tier = "Godly"},
+    {name = "Asteroid Egg", tier = "Godly"},
+    {name = "Devil Fruit Egg", tier = "Godly"},
+    {name = "Dragon Egg", tier = "Godly"},
+    {name = "Admin Egg", tier = "Godly"},
+    {name = "Cherub Egg", tier = "Godly"},
+    {name = "Dominus Egg", tier = "Legendary"},
+    {name = "Sinister Egg", tier = "Legendary"},
+    {name = "Soul Egg", tier = "Legendary"},
+    {name = "Diamond Egg", tier = "Legendary"},
+    {name = "Flaming Egg", tier = "Legendary"},
+    {name = "Crystal Egg", tier = "Epic"},
+    {name = "Tropical Egg", tier = "Epic"},
+    {name = "Tidal Egg", tier = "Epic"},
+    {name = "Giant Egg", tier = "Epic"},
+    {name = "Easter Egg", tier = "Epic"},
+    {name = "Mushroom Egg", tier = "Epic"},
+    {name = "Golden Egg", tier = "Rare"},
+    {name = "Cracked Egg", tier = "Rare"},
+    {name = "Glass Egg", tier = "Rare"},
+    {name = "Ice Egg", tier = "Rare"},
+    {name = "Skull Egg", tier = "Rare"},
+    {name = "Slime Egg", tier = "Rare"},
+    {name = "Stone Egg", tier = "Uncommon"},
+    {name = "Flower Egg", tier = "Uncommon"},
+    {name = "Leaf Egg", tier = "Uncommon"},
+    {name = "Brown Egg", tier = "Uncommon"},
+    {name = "White Egg", tier = "Common"}
+}
+
+local TierPriority = {
+    ["Godly"]     = 6,
+    ["Legendary"] = 5,
+    ["Epic"]      = 4,
+    ["Rare"]      = 3,
+    ["Uncommon"]  = 2,
+    ["Common"]    = 1
+}
+
+local TierColors = {
+    ["Godly"]     = Color3.fromRGB(255, 60, 95),
+    ["Legendary"] = Color3.fromRGB(255, 175, 45),
+    ["Epic"]      = Color3.fromRGB(195, 75, 255),
+    ["Rare"]      = Color3.fromRGB(65, 170, 255),
+    ["Uncommon"]  = Color3.fromRGB(65, 220, 125),
+    ["Common"]    = Color3.fromRGB(180, 180, 185)
+}
+
+local IgnoredEggs = {}
+local UpdateMonitorUI = function() end
+
+local State = {
+    MasterFarm   = false,
+    InstantFarm  = false,
+    FarmMode     = "Full Sequence",
+    EggCount     = 0,
+    Status       = "Idle",
+    TargetName   = "None",
+    TargetRarity = "None",
+    AutoDeploy   = false,
+    AutoCollect  = false,
+    AutoFeed     = false,
+    AutoHatch    = false,
+    AutoUpgrade  = false,
+    EggESP       = false,
+    Flying       = false,
+    FlySpeed     = 75,
+    ReturnSpeed  = 500,
+    WalkSpeed    = 16,
+    JumpPower    = 50,
+    BaseCFrame   = nil,
+    PlotObject   = nil,
+    Running      = true,
+    SelectedEggs = {}
+}
+
+for _, item in ipairs(AllEggList) do
+    State.SelectedEggs[item.name] = false
+end
+
+local function SafeFire(remote, ...)
+    if remote then
+        pcall(function(...) remote:FireServer(...) end, ...)
+    end
+end
+
+local function GetRoot()
+    local char = LP.Character
+    return char and char:FindFirstChild("HumanoidRootPart")
+end
+
+local function GetHum()
+    local char = LP.Character
+    return char and char:FindFirstChildOfClass("Humanoid")
+end
+
+-- Helper Noclip: Karakter tembus batu/tembok goa & tidak terpental keluar
+local function SetCharacterNoclip(enable)
+    local char = LP.Character
+    if not char then return end
+    pcall(function()
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = not enable
+            end
+        end
+    end)
+end
+
+local function TriggerPromptInstant(prompt)
+    if not prompt or not prompt:IsA("ProximityPrompt") then return end
+    pcall(function()
+        -- TEMBUS TEMBOK: Matikan halangan pandang & perbesar jarak interaksi
+        prompt.RequiresLineOfSight = false
+        prompt.MaxActivationDistance = 99999
+        
+        if fireproximityprompt then 
+            fireproximityprompt(prompt) 
+        end
+        if prompt.InputHoldBegin and prompt.InputHoldEnd then
+            prompt:InputHoldBegin()
+            task.wait(0.12)
+            prompt:InputHoldEnd()
+        end
+    end)
+end
+
+local function ClickOrActivateEgg()
+    local char = LP.Character
+    if not char then return end
+
+    for _, tool in ipairs(char:GetChildren()) do
+        if tool:IsA("Tool") then
+            pcall(function() tool:Activate() end)
+        end
+    end
+
+    pcall(function()
+        VirtualUser:CaptureController()
+        local cam = Workspace.CurrentCamera
+        local center = cam and Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2) or Vector2.zero
+        VirtualUser:ClickButton1(center)
+    end)
+
+    for _, p in ipairs(char:GetDescendants()) do
+        if p:IsA("ProximityPrompt") then
+            TriggerPromptInstant(p)
+        end
+    end
+end
+
+local function IsCarryingEgg()
+    local char = LP.Character
+    if not char then return false end
+    for _, tool in ipairs(char:GetChildren()) do
+        if tool:IsA("Tool") and string.find(string.lower(tool.Name), "egg") then
+            return true
+        end
+    end
+    for _, item in ipairs(char:GetChildren()) do
+        if item:IsA("Model") and item ~= char then
+            local n = string.lower(item.Name)
+            if string.find(n, "egg") and not string.find(n, "pet") and not string.find(n, "mount") and not string.find(n, "nest") then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local function IsEggSelected(objName)
+    local lowerName = string.lower(objName)
+    for _, item in ipairs(AllEggList) do
+        if State.SelectedEggs[item.name] == true then
+            local eggLower = string.lower(item.name)
+            local eggBase = string.gsub(eggLower, "%s*egg$", "")
+            if string.find(lowerName, eggLower, 1, true) or string.find(lowerName, eggBase, 1, true) then
+                return true, item.name, item.tier
+            end
+        end
+    end
+    return false, nil, nil
+end
+
+local function HasAnyEggSelected()
+    for _, active in pairs(State.SelectedEggs) do
+        if active == true then return true end
+    end
+    return false
+end
+
+local function FindMyPlot()
+    local plots = Workspace:FindFirstChild("Plots") or Workspace:FindFirstChild("PlayerPlots")
+    if plots then
+        for _, pl in ipairs(plots:GetChildren()) do
+            local owner = pl:FindFirstChild("Owner") or pl:FindFirstChild("Player")
+            if (owner and owner.Value == LP) or string.find(string.lower(pl.Name), string.lower(LP.Name)) then
+                State.PlotObject = pl
+                local nest = pl:FindFirstChild("Nests") or pl:FindFirstChild("Nest") or pl:FindFirstChild("Plant1") or pl:FindFirstChildWhichIsA("BasePart")
+                if nest then
+                    local part = nest:IsA("BasePart") and nest or nest:FindFirstChildWhichIsA("BasePart")
+                    if part then return part.CFrame + Vector3.new(0, 1.5, 0) end
+                end
+                return pl:GetPivot() + Vector3.new(0, 1.5, 0)
+            end
+        end
+    end
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("TextLabel") or obj:IsA("SurfaceGui") then
+            local txt = obj:IsA("TextLabel") and obj.Text or (obj:FindFirstChildWhichIsA("TextLabel") and obj:FindFirstChildWhichIsA("TextLabel").Text or "")
+            if string.find(string.lower(txt), string.lower(LP.Name)) and string.find(string.lower(txt), "plot") then
+                local p = obj:FindFirstAncestorWhichIsA("Model") or obj:FindFirstAncestorWhichIsA("BasePart")
+                if p then
+                    State.PlotObject = p
+                    return p:GetPivot() + Vector3.new(0, 1.5, 0)
+                end
+            end
+        end
+    end
+    local sp = Workspace:FindFirstChildOfClass("SpawnLocation")
+    if sp then return sp.CFrame + Vector3.new(0, 3, 0) end
+    local root = GetRoot()
+    return root and root.CFrame or CFrame.new(0, 10, 0)
+end
+
+task.spawn(function()
+    task.wait(0.5)
+    State.BaseCFrame = FindMyPlot()
+end)
+
+local function GetEggUUID(eggObj)
+    if not eggObj then return nil end
+    if string.find(eggObj.Name, "%x%x%x%x%x%x%x%x%-%x%x%x%x") then
+        return eggObj.Name
+    end
+    for attName, attVal in pairs(eggObj:GetAttributes()) do
+        if type(attVal) == "string" and string.find(attVal, "%x%x%x%x%x%x%x%x%-%x%x%x%x") then
+            return attVal
+        end
+    end
+    for _, child in ipairs(eggObj:GetChildren()) do
+        if child:IsA("StringValue") and string.find(child.Value, "%x%x%x%x%x%x%x%x%-%x%x%x%x") then
+            return child.Value
+        end
+        if string.find(child.Name, "%x%x%x%x%x%x%x%x%-%x%x%x%x") then
+            return child.Name
+        end
+    end
+    return nil
+end
+
+local function SnapToTarget(targetPos)
+    local root = GetRoot()
+    if not root then return end
+    SetCharacterNoclip(true) -- Tembus rintangan goa
+    root.CFrame = CFrame.new(targetPos + Vector3.new(0, 0.5, 0)) -- Posisi sejajar telur, tidak mentok atap
+    root.AssemblyLinearVelocity = Vector3.zero
+    task.wait(0.04)
+end
+
+local function GlideToBaseSafe(basePos)
+    local root = GetRoot()
+    local hum = GetHum()
+    if not root then return end
+
+    local startPos = root.Position
+    local targetPos = basePos + Vector3.new(0, 2.5, 0)
+    local dist = (startPos - targetPos).Magnitude
+
+    local speed = math.max(State.ReturnSpeed or 250, 50)
+    local totalTime = math.clamp(dist / speed, 0.1, 8.0)
+
+    if hum then hum.PlatformStand = true end
+    root.Anchored = true
+
+    local startTime = os.clock()
+    while os.clock() - startTime < totalTime do
+        local alpha = math.clamp((os.clock() - startTime) / totalTime, 0, 1)
+        root.CFrame = CFrame.new(startPos:Lerp(targetPos, alpha))
+        task.wait(0.02)
+    end
+
+    root.CFrame = CFrame.new(targetPos)
+    root.Anchored = false
+    if hum then hum.PlatformStand = false end
+    root.AssemblyLinearVelocity = Vector3.zero
+    task.wait(0.05)
+end
+
+local function FindEggsInMap()
+    local list = {}
+    local root = GetRoot()
+    local myPos = root and root.Position or Vector3.zero
+
+    local baseCFrame = State.BaseCFrame or FindMyPlot()
+    local basePos = baseCFrame and baseCFrame.Position or Vector3.zero
+    local myPlotObj = State.PlotObject
+
+    local blacklist = {"tracker", "stand", "pedestal", "shop", "store", "display", "base", "nest", "plot", "buy", "sample", "plant", "incubator"}
+
+    local now = os.clock()
+    for k, expire in pairs(IgnoredEggs) do
+        if now > expire then IgnoredEggs[k] = nil end
+    end
+
+    if not HasAnyEggSelected() then return list end
+
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if not IgnoredEggs[obj] and (obj:IsA("Model") or (obj:IsA("BasePart") and not obj.Parent:IsA("Model"))) then
+            
+            local inAnyPlot = obj:FindFirstAncestor("Plots") or obj:FindFirstAncestor("PlayerPlots")
+            if myPlotObj and obj:IsDescendantOf(myPlotObj) then
+                inAnyPlot = true
+            end
+
+            local isBlack = false
+            local ancestor = obj
+            while ancestor and ancestor ~= Workspace do
+                local aName = string.lower(ancestor.Name)
+                for _, word in ipairs(blacklist) do
+                    if string.find(aName, word) then
+                        isBlack = true
+                        break
+                    end
+                end
+                if isBlack then break end
+                ancestor = ancestor.Parent
+            end
+
+            if not inAnyPlot and not isBlack and not obj:IsDescendantOf(LP.Character) then
+                local selected, eggName, eggTier = IsEggSelected(obj.Name)
+                if selected then
+                    -- Cari Part Hitbox/Touch yang paling valid di dalam model telur
+                    local p = nil
+                    if obj:IsA("BasePart") then
+                        p = obj
+                    else
+                        p = obj:FindFirstChild("Hitbox") 
+                            or obj:FindFirstChild("Main") 
+                            or obj:FindFirstChild("Egg")
+                            or obj.PrimaryPart 
+                            or obj:FindFirstChildWhichIsA("BasePart")
+                    end
+
+                    if p and p.Transparency < 0.9 and not IgnoredEggs[p] then
+                        local distToBase = (p.Position - basePos).Magnitude
+                        if distToBase > 120 then
+                            local dist = (myPos - p.Position).Magnitude
+                            local tierVal = TierPriority[eggTier] or 1
+                            table.insert(list, {
+                                Object    = obj,
+                                Part      = p,
+                                Name      = eggName,
+                                Tier      = eggTier,
+                                Priority  = tierVal,
+                                Distance  = dist,
+                                UUID      = GetEggUUID(obj)
+                            })
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    table.sort(list, function(a, b)
+        if a.Priority ~= b.Priority then return a.Priority > b.Priority end
+        return a.Distance < b.Distance
+    end)
+
+    return list
+end
+
+local function PerformEggPickup(egg)
+    local root = GetRoot()
+    if not root or not egg or not egg.Part then return false end
+
+    -- Aktifkan Noclip agar tembus dinding goa/volcano
+    SetCharacterNoclip(true)
+    SnapToTarget(egg.Part.Position)
+    task.wait(0.12)
+
+    -- Trigger ProximityPrompt telur (Bypass LineOfSight)
+    for _, prompt in ipairs(egg.Object:GetDescendants()) do
+        if prompt:IsA("ProximityPrompt") then
+            TriggerPromptInstant(prompt)
+        end
+    end
+
+    -- Trigger Touch Interest pada part telur
+    if firetouchinterest and root and egg.Part then
+        pcall(function()
+            firetouchinterest(root, egg.Part, 0)
+            task.wait()
+            firetouchinterest(root, egg.Part, 1)
+        end)
+    end
+
+    -- Kirim Remote Pickup
+    local uuid = egg.UUID or GetEggUUID(egg.Object)
+    if EggPickupRemote then
+        if uuid then
+            SafeFire(EggPickupRemote, uuid)
+        else
+            SafeFire(EggPickupRemote, egg.Object)
+            SafeFire(EggPickupRemote, egg.Part)
+        end
+    end
+
+    ClickOrActivateEgg()
+
+    local startWait = os.clock()
+    while os.clock() - startWait < 0.9 do
+        SetCharacterNoclip(true)
+        if IsCarryingEgg() or not egg.Object:IsDescendantOf(Workspace) or (egg.Part and egg.Part.Transparency >= 0.9) then
+            ClickOrActivateEgg()
+            return true
+        end
+        task.wait(0.08)
+    end
+
+    return IsCarryingEgg()
+end
+
+local function PerformInstantPickup(egg)
+    local root = GetRoot()
+    if not root or not egg or not egg.Part then return false end
+
+    -- Noclip aktif & mendarat pas di dekat telur
+    SetCharacterNoclip(true)
+    root.CFrame = CFrame.new(egg.Part.Position + Vector3.new(0, 0.5, 0))
+    root.AssemblyLinearVelocity = Vector3.zero
+    task.wait(0.04)
+
+    -- Bypass & trigger prompt
+    for _, prompt in ipairs(egg.Object:GetDescendants()) do
+        if prompt:IsA("ProximityPrompt") then
+            TriggerPromptInstant(prompt)
+        end
+    end
+
+    -- Touch interest
+    if firetouchinterest and root and egg.Part then
+        pcall(function()
+            firetouchinterest(root, egg.Part, 0)
+            task.wait()
+            firetouchinterest(root, egg.Part, 1)
+        end)
+    end
+
+    local uuid = egg.UUID or GetEggUUID(egg.Object)
+    if EggPickupRemote then
+        if uuid then
+            SafeFire(EggPickupRemote, uuid)
+        else
+            SafeFire(EggPickupRemote, egg.Object)
+            SafeFire(EggPickupRemote, egg.Part)
+        end
+    end
+
+    ClickOrActivateEgg()
+
+    local startWait = os.clock()
+    while os.clock() - startWait < 0.6 do
+        SetCharacterNoclip(true)
+        if IsCarryingEgg() or not egg.Object:IsDescendantOf(Workspace) or (egg.Part and egg.Part.Transparency >= 0.9) then
+            return true
+        end
+        task.wait(0.05)
+    end
+
+    return IsCarryingEgg() or not egg.Object:IsDescendantOf(Workspace)
+end
+
+local function PerformFullDelivery()
+    local root = GetRoot()
+    if not root then return end
+
+    State.Status = "Gliding to Base..."
+    UpdateMonitorUI()
+
+    local baseCFrame = State.BaseCFrame or FindMyPlot()
+    local basePos = baseCFrame and baseCFrame.Position or root.Position
+
+    GlideToBaseSafe(basePos)
+    task.wait(0.12)
+
+    State.Status = "Storing & Claiming..."
+    UpdateMonitorUI()
+
+    if EggArrivalClaimRem then
+        local now = os.time()
+        SafeFire(EggArrivalClaimRem, now, basePos.X, basePos.Y, basePos.Z, {})
+    end
+    task.wait(0.08)
+
+    if RequestPlotEggsRem then
+        SafeFire(RequestPlotEggsRem, false)
+    end
+    task.wait(0.08)
+
+    if EggPlacedRemote then
+        SafeFire(EggPlacedRemote, {})
+    end
+    if BasketDropRemote then
+        SafeFire(BasketDropRemote)
+    end
+
+    local plotObj = State.PlotObject or FindMyPlot()
+    if plotObj and typeof(plotObj) == "Instance" then
+        for _, prompt in ipairs(plotObj:GetDescendants()) do
+            if prompt:IsA("ProximityPrompt") then
+                TriggerPromptInstant(prompt)
+            end
+        end
+    end
+
+    ClickOrActivateEgg()
+    task.wait(0.08)
+
+    local hum = GetHum()
+    if hum then
+        pcall(function() hum:UnequipTools() end)
+    end
+
+    pcall(function()
+        for _, g in ipairs(PlayerGui:GetDescendants()) do
+            if (g:IsA("TextButton") or g:IsA("ImageButton")) and g.Visible then
+                local txt = string.lower(g:IsA("TextButton") and g.Text or g.Name)
+                if string.find(txt, "drop") or string.find(txt, "store") or string.find(txt, "place") or string.find(txt, "bag") then
+                    if g.MouseButton1Click then
+                        for _, c in ipairs(getconnections(g.MouseButton1Click)) do c:Fire() end
+                    end
+                end
+            end
+        end
+    end)
+
+    task.wait(0.15)
+end
+
+local function PerformInstantDelivery()
+    local root = GetRoot()
+    if not root then return end
+
+    local baseCFrame = State.BaseCFrame or FindMyPlot()
+    local basePos = baseCFrame and baseCFrame.Position or root.Position
+
+    root.CFrame = CFrame.new(basePos + Vector3.new(0, 2.5, 0))
+    root.AssemblyLinearVelocity = Vector3.zero
+
+    State.Status = "Storing & Claiming..."
+    UpdateMonitorUI()
+
+    if EggArrivalClaimRem then
+        local now = os.time()
+        SafeFire(EggArrivalClaimRem, now, basePos.X, basePos.Y, basePos.Z, {})
+    end
+    task.wait(0.05)
+
+    if RequestPlotEggsRem then
+        SafeFire(RequestPlotEggsRem, false)
+    end
+    task.wait(0.05)
+
+    if EggPlacedRemote then
+        SafeFire(EggPlacedRemote, {})
+    end
+    if BasketDropRemote then
+        SafeFire(BasketDropRemote)
+    end
+
+    local plotObj = State.PlotObject or FindMyPlot()
+    if plotObj and typeof(plotObj) == "Instance" then
+        for _, prompt in ipairs(plotObj:GetDescendants()) do
+            if prompt:IsA("ProximityPrompt") then
+                TriggerPromptInstant(prompt)
+            end
+        end
+    end
+
+    ClickOrActivateEgg()
+    task.wait(0.05)
+
+    local hum = GetHum()
+    if hum then
+        pcall(function() hum:UnequipTools() end)
+    end
+
+    pcall(function()
+        for _, g in ipairs(PlayerGui:GetDescendants()) do
+            if (g:IsA("TextButton") or g:IsA("ImageButton")) and g.Visible then
+                local txt = string.lower(g:IsA("TextButton") and g.Text or g.Name)
+                if string.find(txt, "drop") or string.find(txt, "store") or string.find(txt, "place") or string.find(txt, "bag") then
+                    if g.MouseButton1Click then
+                        for _, c in ipairs(getconnections(g.MouseButton1Click)) do c:Fire() end
+                    end
+                end
+            end
+        end
+    end)
+end
+
+local espFolder = nil
+local function UpdateESP(enable)
+    if espFolder then espFolder:Destroy(); espFolder = nil end
+    if not enable or not State.Running then return end
+    espFolder = Instance.new("Folder")
+    espFolder.Name = "ErdevaEggESP"
+    espFolder.Parent = Workspace
+    for _, item in ipairs(FindEggsInMap()) do
+        local p = item.Part
+        if p and p.Parent then
+            local hl = Instance.new("Highlight")
+            hl.Adornee = item.Object
+            hl.FillColor = TierColors[item.Tier] or Color3.fromRGB(235, 30, 48)
+            hl.FillTransparency = 0.5
+            hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+            hl.OutlineTransparency = 0.1
+            hl.Parent = espFolder
+            local bb = Instance.new("BillboardGui")
+            bb.Adornee = p
+            bb.Size = UDim2.fromOffset(130, 36)
+            bb.AlwaysOnTop = true
+            bb.Parent = espFolder
+            local lbl = Instance.new("TextLabel")
+            lbl.Size = UDim2.new(1, 0, 1, 0)
+            lbl.BackgroundTransparency = 1
+            lbl.Text = item.Name .. " [" .. item.Tier .. "]"
+            lbl.TextColor3 = TierColors[item.Tier] or Color3.fromRGB(255, 75, 95)
+            lbl.TextStrokeColor3 = Color3.fromRGB(25, 5, 8)
+            lbl.TextStrokeTransparency = 0.2
+            lbl.Font = Enum.Font.GothamBold
+            lbl.TextSize = 11
+            lbl.Parent = bb
+        end
+    end
+end
+
+local flyBV, flyBG
+local function ToggleFly(on)
+    State.Flying = on
+    local root = GetRoot()
+    local hum = GetHum()
+    if not root or not hum then return end
+    if on then
+        if root:FindFirstChild("ErdevaFlyBV") then root.ErdevaFlyBV:Destroy() end
+        if root:FindFirstChild("ErdevaFlyBG") then root.ErdevaFlyBG:Destroy() end
+        flyBV = Instance.new("BodyVelocity")
+        flyBV.Name = "ErdevaFlyBV"
+        flyBV.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+        flyBV.Velocity = Vector3.zero
+        flyBV.Parent = root
+        flyBG = Instance.new("BodyGyro")
+        flyBG.Name = "ErdevaFlyBG"
+        flyBG.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+        flyBG.P = 1e6
+        flyBG.CFrame = root.CFrame
+        flyBG.Parent = root
+        hum.PlatformStand = true
+    else
+        if root:FindFirstChild("ErdevaFlyBV") then root.ErdevaFlyBV:Destroy() end
+        if root:FindFirstChild("ErdevaFlyBG") then root.ErdevaFlyBG:Destroy() end
+        hum.PlatformStand = false
+    end
+end
+
+local heartbeatConn
+heartbeatConn = RunService.Heartbeat:Connect(function()
+    if not State.Running then
+        if heartbeatConn then heartbeatConn:Disconnect() end
+        return
+    end
+    local root = GetRoot()
+    if State.Flying and root and flyBV and flyBG then
+        local cam = Workspace.CurrentCamera
+        local dir = Vector3.zero
+        if UIS:IsKeyDown(Enum.KeyCode.W) then dir = dir + cam.CFrame.LookVector end
+        if UIS:IsKeyDown(Enum.KeyCode.S) then dir = dir - cam.CFrame.LookVector end
+        if UIS:IsKeyDown(Enum.KeyCode.A) then dir = dir - cam.CFrame.RightVector end
+        if UIS:IsKeyDown(Enum.KeyCode.D) then dir = dir + cam.CFrame.RightVector end
+        if UIS:IsKeyDown(Enum.KeyCode.Space) then dir = dir + Vector3.new(0, 1, 0) end
+        if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then dir = dir - Vector3.new(0, 1, 0) end
+        flyBV.Velocity = dir.Magnitude > 0 and dir.Unit * State.FlySpeed or Vector3.zero
+        flyBG.CFrame = cam.CFrame
+    end
+end)
+
+local Clr = {
+    MainBg     = Color3.fromRGB(18, 9, 12),
+    Sidebar    = Color3.fromRGB(25, 11, 15),
+    Card       = Color3.fromRGB(32, 14, 18),
+    CardBorder = Color3.fromRGB(80, 24, 32),
+    RedAccent  = Color3.fromRGB(235, 30, 48),
+    RedDark    = Color3.fromRGB(150, 18, 28),
+    RedGlow    = Color3.fromRGB(255, 75, 95),
+    TextMain   = Color3.fromRGB(255, 240, 242),
+    TextDim    = Color3.fromRGB(195, 145, 152),
+    ToggleOff  = Color3.fromRGB(48, 18, 24),
+    Discord    = Color3.fromRGB(88, 101, 242),
+    DiscordDark= Color3.fromRGB(60, 70, 180)
+}
+
+local SG = Instance.new("ScreenGui")
+SG.Name = "ErdevaRideAPet"
+SG.ResetOnSpawn = false
+SG.IgnoreGuiInset = true
+SG.Parent = targetParent
+
+local FloatBtn = Instance.new("ImageButton")
+FloatBtn.Size = UDim2.fromOffset(46, 46)
+FloatBtn.Position = UDim2.new(0, 18, 0.35, 0)
+FloatBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
+FloatBtn.Image = hubCustomIcon
+FloatBtn.BorderSizePixel = 0
+FloatBtn.Active = true
+FloatBtn.Visible = false
+FloatBtn.Parent = SG
+Instance.new("UICorner", FloatBtn).CornerRadius = UDim.new(1, 0)
+
+local Main = Instance.new("Frame")
+Main.Name = "MainFrame"
+Main.AnchorPoint = Vector2.new(0.5, 0.5)
+Main.Size = UDim2.fromOffset(485, 290)
+Main.Position = UDim2.new(0.5, 0, 0.5, 0)
+Main.BackgroundColor3 = Clr.Sidebar
+Main.BorderSizePixel = 0
+Main.ClipsDescendants = false
+Main.Active = true
+Main.Parent = SG
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 10)
+
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Color = Color3.fromRGB(160, 28, 40)
+MainStroke.Thickness = 1.4
+MainStroke.Parent = Main
+
+local SizeConstraint = Instance.new("UISizeConstraint")
+SizeConstraint.MinSize = Vector2.new(380, 240)
+SizeConstraint.MaxSize = Vector2.new(580, 360)
+SizeConstraint.Parent = Main
+
+FloatBtn.MouseButton1Click:Connect(function()
+    FloatBtn.Visible = false
+    Main.Visible = true
+end)
+
+local fDragging = false
+local fDragStart, fStartPos
+FloatBtn.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+        fDragging = true; fDragStart = i.Position; fStartPos = FloatBtn.Position
+    end
+end)
+UIS.InputEnded:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+        fDragging = false
+    end
+end)
+UIS.InputChanged:Connect(function(i)
+    if fDragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+        local delta = i.Position - fDragStart
+        local targetPos = UDim2.new(fStartPos.X.Scale, fStartPos.X.Offset + delta.X, fStartPos.Y.Scale, fStartPos.Y.Offset + delta.Y)
+        TweenService:Create(FloatBtn, TweenInfo.new(0.06, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = targetPos}):Play()
+    end
+end)
+
+local Sidebar = Instance.new("Frame")
+Sidebar.Size = UDim2.new(0, 138, 1, 0)
+Sidebar.BackgroundColor3 = Clr.Sidebar
+Sidebar.BorderSizePixel = 0
+Sidebar.Parent = Main
+Instance.new("UICorner", Sidebar).CornerRadius = UDim.new(0, 10)
+
+local SideBorderLine = Instance.new("Frame")
+SideBorderLine.Size = UDim2.new(0, 1, 1, 0)
+SideBorderLine.Position = UDim2.new(1, -1, 0, 0)
+SideBorderLine.BackgroundColor3 = Clr.CardBorder
+SideBorderLine.BorderSizePixel = 0
+SideBorderLine.Parent = Sidebar
+
+local Header = Instance.new("Frame")
+Header.Size = UDim2.new(1, 0, 0, 48)
+Header.BackgroundTransparency = 1
+Header.Parent = Sidebar
+
+local CustomLogo = Instance.new("ImageLabel")
+CustomLogo.Size = UDim2.fromOffset(26, 26)
+CustomLogo.Position = UDim2.fromOffset(12, 11)
+CustomLogo.BackgroundTransparency = 1
+CustomLogo.Image = hubCustomIcon
+CustomLogo.Parent = Header
+Instance.new("UICorner", CustomLogo).CornerRadius = UDim.new(0, 6)
+
+local GameTitle = Instance.new("TextLabel")
+GameTitle.Size = UDim2.new(1, -44, 0, 16)
+GameTitle.Position = UDim2.fromOffset(44, 9)
+GameTitle.BackgroundTransparency = 1
+GameTitle.Text = "ERDEVA HUB"
+GameTitle.TextColor3 = Clr.TextMain
+GameTitle.Font = Enum.Font.GothamBold
+GameTitle.TextSize = 12
+GameTitle.TextXAlignment = Enum.TextXAlignment.Left
+GameTitle.Parent = Header
+
+local SubTitle = Instance.new("TextLabel")
+SubTitle.Size = UDim2.new(1, -44, 0, 14)
+SubTitle.Position = UDim2.fromOffset(44, 25)
+SubTitle.BackgroundTransparency = 1
+SubTitle.Text = "Ride A Pet"
+SubTitle.TextColor3 = Clr.RedGlow
+SubTitle.Font = Enum.Font.GothamMedium
+SubTitle.TextSize = 9
+SubTitle.TextXAlignment = Enum.TextXAlignment.Left
+SubTitle.Parent = Header
+
+local TabContainer = Instance.new("ScrollingFrame")
+TabContainer.Size = UDim2.new(1, 0, 1, -88)
+TabContainer.Position = UDim2.fromOffset(0, 50)
+TabContainer.BackgroundTransparency = 1
+TabContainer.BorderSizePixel = 0
+TabContainer.ScrollBarThickness = 0
+TabContainer.Parent = Sidebar
+
+local TabList = Instance.new("UIListLayout")
+TabList.SortOrder = Enum.SortOrder.LayoutOrder
+TabList.Padding = UDim.new(0, 3)
+TabList.Parent = TabContainer
+
+local DiscordCard = Instance.new("TextButton")
+DiscordCard.Size = UDim2.new(1, -12, 0, 28)
+DiscordCard.Position = UDim2.new(0, 6, 1, -34)
+DiscordCard.BackgroundColor3 = Color3.fromRGB(22, 25, 42)
+DiscordCard.BorderSizePixel = 0
+DiscordCard.AutoButtonColor = false
+DiscordCard.Text = ""
+DiscordCard.Parent = Sidebar
+Instance.new("UICorner", DiscordCard).CornerRadius = UDim.new(0, 6)
+
+local dStroke = Instance.new("UIStroke")
+dStroke.Color = Color3.fromRGB(65, 80, 160)
+dStroke.Thickness = 1
+dStroke.Parent = DiscordCard
+
+local DiscordIcon = Instance.new("ImageLabel")
+DiscordIcon.Name = "DiscordIcon"
+DiscordIcon.BackgroundTransparency = 1
+DiscordIcon.BorderSizePixel = 0
+DiscordIcon.Image = discordCustomIcon
+DiscordIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
+DiscordIcon.ImageTransparency = 0
+DiscordIcon.ScaleType = Enum.ScaleType.Fit
+DiscordIcon.Size = UDim2.fromOffset(26, 26)
+DiscordIcon.Position = UDim2.new(0, 5, 0.5, -13)
+DiscordIcon.Parent = DiscordCard
+
+local DiscordTitle = Instance.new("TextLabel")
+DiscordTitle.Size = UDim2.new(1, -35, 1, 0)
+DiscordTitle.Position = UDim2.fromOffset(35, 0)
+DiscordTitle.BackgroundTransparency = 1
+DiscordTitle.Text = "discord.gg/fTv3aKA9Ed"
+DiscordTitle.TextColor3 = Color3.fromRGB(210, 220, 255)
+DiscordTitle.Font = Enum.Font.GothamMedium
+DiscordTitle.TextSize = 8.5
+DiscordTitle.TextXAlignment = Enum.TextXAlignment.Left
+DiscordTitle.TextTruncate = Enum.TextTruncate.AtEnd
+DiscordTitle.ZIndex = 10
+DiscordTitle.Parent = DiscordCard
+
+local discordInviteURL = "https://discord.gg/fTv3aKA9Ed"
+DiscordCard.MouseButton1Click:Connect(function()
+    if setclipboard then
+        setclipboard(discordInviteURL)
+    end
+    DiscordTitle.Text = "Copied to Clipboard!"
+    DiscordTitle.TextColor3 = Color3.fromRGB(120, 245, 160)
+    DiscordTitle.Font = Enum.Font.GothamBold
+    TweenService:Create(DiscordCard, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(30, 48, 40)}):Play()
+
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "ERDEVA HUB!",
+            Text = "Discord link copied to clipboard successfully!",
+            Duration = 4
+        })
+    end)
+
+    task.delay(1.5, function()
+        DiscordTitle.Text = "discord.gg/fTv3aKA9Ed"
+        DiscordTitle.TextColor3 = Color3.fromRGB(210, 220, 255)
+        DiscordTitle.Font = Enum.Font.GothamMedium
+        TweenService:Create(DiscordCard, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(22, 25, 42)}):Play()
+    end)
+end)
+
+local ContentArea = Instance.new("Frame")
+ContentArea.Size = UDim2.new(1, -142, 1, 0)
+ContentArea.Position = UDim2.fromOffset(142, 0)
+ContentArea.BackgroundTransparency = 1
+ContentArea.Parent = Main
+
+local Topbar = Instance.new("Frame")
+Topbar.Size = UDim2.new(1, 0, 0, 32)
+Topbar.BackgroundTransparency = 1
+Topbar.Parent = ContentArea
+
+local function DestroyAll()
+    State.Running = false
+    State.MasterFarm = false
+    State.InstantFarm = false
+    State.AutoDeploy = false
+    State.AutoCollect = false
+    State.AutoFeed = false
+    State.AutoHatch = false
+    State.AutoUpgrade = false
+    State.EggESP = false
+    ToggleFly(false)
+    UpdateESP(false)
+    SG:Destroy()
+end
+
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.fromOffset(20, 20)
+CloseBtn.Position = UDim2.new(1, -26, 0.5, -10)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(42, 12, 16)
+CloseBtn.Text = "x"
+CloseBtn.TextColor3 = Clr.RedGlow
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 10
+CloseBtn.BorderSizePixel = 0
+CloseBtn.Parent = Topbar
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 5)
+CloseBtn.MouseButton1Click:Connect(DestroyAll)
+
+local MinMainBtn = Instance.new("TextButton")
+MinMainBtn.Size = UDim2.fromOffset(20, 20)
+MinMainBtn.Position = UDim2.new(1, -50, 0.5, -10)
+MinMainBtn.BackgroundColor3 = Color3.fromRGB(36, 16, 20)
+MinMainBtn.Text = "-"
+MinMainBtn.TextColor3 = Clr.TextDim
+MinMainBtn.Font = Enum.Font.GothamBold
+MinMainBtn.TextSize = 12
+MinMainBtn.BorderSizePixel = 0
+MinMainBtn.Parent = Topbar
+Instance.new("UICorner", MinMainBtn).CornerRadius = UDim.new(0, 5)
+MinMainBtn.MouseButton1Click:Connect(function()
+    Main.Visible = false
+    FloatBtn.Visible = true
+end)
+
+local mDragging, mStart, mPos
+Topbar.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+        mDragging = true; mStart = i.Position; mPos = Main.Position
+    end
+end)
+UIS.InputEnded:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+        mDragging = false
+    end
+end)
+UIS.InputChanged:Connect(function(i)
+    if mDragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+        local delta = i.Position - mStart
+        Main.Position = UDim2.new(mPos.X.Scale, mPos.X.Offset + delta.X, mPos.Y.Scale, mPos.Y.Offset + delta.Y)
+    end
+end)
+
+local Pages = {}
+local TabButtons = {}
+
+local function CreateTab(name, assetId, order)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -12, 0, 28)
+    btn.Position = UDim2.fromOffset(6, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(38, 16, 20)
+    btn.BackgroundTransparency = 1
+    btn.Text = ""
+    btn.BorderSizePixel = 0
+    btn.LayoutOrder = order
+    btn.Parent = TabContainer
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+
+    local barIndicator = Instance.new("Frame")
+    barIndicator.Size = UDim2.new(0, 3, 0.6, 0)
+    barIndicator.Position = UDim2.new(0, 2, 0.2, 0)
+    barIndicator.BackgroundColor3 = Clr.RedAccent
+    barIndicator.BorderSizePixel = 0
+    barIndicator.Visible = false
+    barIndicator.Parent = btn
+    Instance.new("UICorner", barIndicator).CornerRadius = UDim.new(1, 0)
+
+    local icon = Instance.new("ImageLabel")
+    icon.Size = UDim2.fromOffset(15, 15)
+    icon.Position = UDim2.fromOffset(10, 6.5)
+    icon.BackgroundTransparency = 1
+    icon.Image = "rbxassetid://" .. tostring(assetId)
+    icon.ImageColor3 = Clr.TextDim
+    icon.Parent = btn
+
+    local titleLbl = Instance.new("TextLabel")
+    titleLbl.Size = UDim2.new(1, -34, 1, 0)
+    titleLbl.Position = UDim2.fromOffset(32, 0)
+    titleLbl.BackgroundTransparency = 1
+    titleLbl.Text = name
+    titleLbl.TextColor3 = Clr.TextDim
+    titleLbl.Font = Enum.Font.GothamMedium
+    titleLbl.TextSize = 10
+    titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+    titleLbl.Parent = btn
+
+    local page = Instance.new("ScrollingFrame")
+    page.Size = UDim2.new(1, -12, 1, -38)
+    page.Position = UDim2.fromOffset(4, 34)
+    page.BackgroundTransparency = 1
+    page.BorderSizePixel = 0
+    page.ScrollBarThickness = 2.5
+    page.ScrollBarImageColor3 = Clr.RedAccent
+    page.ScrollBarImageTransparency = 0.3
+    page.Visible = false
+    page.Parent = ContentArea
+
+    local pLay = Instance.new("UIListLayout")
+    pLay.SortOrder = Enum.SortOrder.LayoutOrder
+    pLay.Padding = UDim.new(0, 6)
+    pLay.Parent = page
+    pLay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        page.CanvasSize = UDim2.new(0, 0, 0, pLay.AbsoluteContentSize.Y + 12)
+    end)
+
+    Pages[name] = page
+    TabButtons[name] = {Btn = btn, Icon = icon, Label = titleLbl, Bar = barIndicator}
+
+    btn.MouseButton1Click:Connect(function()
+        for pName, pObj in pairs(Pages) do pObj.Visible = (pName == name) end
+        for bName, bData in pairs(TabButtons) do
+            local isSel = (bName == name)
+            TweenService:Create(bData.Btn, TweenInfo.new(0.14), {
+                BackgroundTransparency = isSel and 0 or 1,
+                BackgroundColor3 = isSel and Color3.fromRGB(48, 18, 24) or Color3.fromRGB(38, 16, 20)
+            }):Play()
+            TweenService:Create(bData.Label, TweenInfo.new(0.14), {TextColor3 = isSel and Clr.TextMain or Clr.TextDim}):Play()
+            TweenService:Create(bData.Icon, TweenInfo.new(0.14), {ImageColor3 = isSel and Clr.RedGlow or Clr.TextDim}):Play()
+            bData.Bar.Visible = isSel
+        end
+    end)
+
+    return page
+end
+
+local function MakeCard(parent, title, desc, order)
+    local f = Instance.new("Frame")
+    f.Size = UDim2.new(1, 0, 0, desc and 42 or 34)
+    f.BackgroundColor3 = Clr.Card
+    f.BorderSizePixel = 0
+    f.LayoutOrder = order or 0
+    f.Parent = parent
+    Instance.new("UICorner", f).CornerRadius = UDim.new(0, 7)
+    local str = Instance.new("UIStroke")
+    str.Color = Clr.CardBorder
+    str.Thickness = 1
+    str.Parent = f
+    local tl = Instance.new("TextLabel")
+    tl.Size = UDim2.new(0.68, 0, 0, 15)
+    tl.Position = UDim2.fromOffset(10, desc and 6 or 9)
+    tl.BackgroundTransparency = 1
+    tl.Text = title
+    tl.TextColor3 = Clr.TextMain
+    tl.Font = Enum.Font.GothamBold
+    tl.TextSize = 10.5
+    tl.TextXAlignment = Enum.TextXAlignment.Left
+    tl.Parent = f
+    if desc then
+        local dl = Instance.new("TextLabel")
+        dl.Size = UDim2.new(0.68, 0, 0, 13)
+        dl.Position = UDim2.fromOffset(10, 22)
+        dl.BackgroundTransparency = 1
+        dl.Text = desc
+        dl.TextColor3 = Clr.TextDim
+        dl.Font = Enum.Font.Gotham
+        dl.TextSize = 8.5
+        dl.TextXAlignment = Enum.TextXAlignment.Left
+        dl.TextTruncate = Enum.TextTruncate.AtEnd
+        dl.Parent = f
+    end
+    return f
+end
+
+local function MakeToggle(parent, title, desc, default, order, callback)
+    local card = MakeCard(parent, title, desc, order)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.fromOffset(36, 18)
+    btn.Position = UDim2.new(1, -44, 0.5, -9)
+    btn.BackgroundColor3 = default and Clr.RedAccent or Clr.ToggleOff
+    btn.BorderSizePixel = 0
+    btn.Text = ""
+    btn.Parent = card
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
+    local dot = Instance.new("Frame")
+    dot.Size = UDim2.fromOffset(14, 14)
+    dot.Position = default and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+    dot.BackgroundColor3 = Color3.new(1, 1, 1)
+    dot.BorderSizePixel = 0
+    dot.Parent = btn
+    Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
+    local state = default
+    btn.MouseButton1Click:Connect(function()
+        state = not state
+        TweenService:Create(btn, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = state and Clr.RedAccent or Clr.ToggleOff}):Play()
+        TweenService:Create(dot, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)}):Play()
+        callback(state)
+    end)
+    return card
+end
+
+local function MakeButton(parent, text, order, callback)
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.new(1, 0, 0, 32)
+    b.BackgroundColor3 = Color3.fromRGB(40, 16, 22)
+    b.BorderSizePixel = 0
+    b.Text = text
+    b.TextColor3 = Clr.TextMain
+    b.Font = Enum.Font.GothamBold
+    b.TextSize = 10
+    b.LayoutOrder = order or 0
+    b.Parent = parent
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 7)
+    local s = Instance.new("UIStroke")
+    s.Color = Clr.CardBorder
+    s.Thickness = 1
+    s.Parent = b
+    b.MouseButton1Click:Connect(function()
+        TweenService:Create(b, TweenInfo.new(0.08), {BackgroundColor3 = Clr.RedDark}):Play()
+        task.delay(0.1, function()
+            TweenService:Create(b, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(40, 16, 22)}):Play()
+        end)
+        callback()
+    end)
+    return b
+end
+
+local function MakeSlider(parent, title, minVal, maxVal, curVal, order, callback)
+    local f = Instance.new("Frame")
+    f.Size = UDim2.new(1, 0, 0, 44)
+    f.BackgroundColor3 = Clr.Card
+    f.BorderSizePixel = 0
+    f.LayoutOrder = order or 0
+    f.Parent = parent
+    Instance.new("UICorner", f).CornerRadius = UDim.new(0, 7)
+    local str = Instance.new("UIStroke")
+    str.Color = Clr.CardBorder
+    str.Thickness = 1
+    str.Parent = f
+    local tl = Instance.new("TextLabel")
+    tl.Size = UDim2.new(0.65, 0, 0, 14)
+    tl.Position = UDim2.fromOffset(10, 6)
+    tl.BackgroundTransparency = 1
+    tl.Text = title
+    tl.TextColor3 = Clr.TextMain
+    tl.Font = Enum.Font.GothamBold
+    tl.TextSize = 10
+    tl.TextXAlignment = Enum.TextXAlignment.Left
+    tl.Parent = f
+    local valBadge = Instance.new("TextLabel")
+    valBadge.Size = UDim2.fromOffset(45, 14)
+    valBadge.Position = UDim2.new(1, -55, 0, 6)
+    valBadge.BackgroundColor3 = Color3.fromRGB(42, 16, 22)
+    valBadge.Text = tostring(curVal)
+    valBadge.TextColor3 = Clr.RedGlow
+    valBadge.Font = Enum.Font.GothamBold
+    valBadge.TextSize = 9.5
+    valBadge.BorderSizePixel = 0
+    valBadge.Parent = f
+    Instance.new("UICorner", valBadge).CornerRadius = UDim.new(0, 4)
+    local bar = Instance.new("Frame")
+    bar.Size = UDim2.new(1, -20, 0, 4)
+    bar.Position = UDim2.fromOffset(10, 28)
+    bar.BackgroundColor3 = Color3.fromRGB(48, 20, 26)
+    bar.BorderSizePixel = 0
+    bar.Parent = f
+    Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
+    local fill = Instance.new("Frame")
+    local ratio = math.clamp((curVal - minVal) / (maxVal - minVal), 0, 1)
+    fill.Size = UDim2.new(ratio, 0, 1, 0)
+    fill.BackgroundColor3 = Clr.RedAccent
+    fill.BorderSizePixel = 0
+    fill.Parent = bar
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+    local sliding = false
+    local hit = Instance.new("TextButton")
+    hit.Size = UDim2.new(1, 0, 3, 0)
+    hit.Position = UDim2.new(0, 0, -1, 0)
+    hit.BackgroundTransparency = 1
+    hit.Text = ""
+    hit.Parent = bar
+    hit.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            sliding = true
+        end
+    end)
+    hit.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+            sliding = false
+        end
+    end)
+    UIS.InputChanged:Connect(function(i)
+        if sliding and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+            local rel = math.clamp((i.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
+            local val = math.floor(minVal + (maxVal - minVal) * rel)
+            fill.Size = UDim2.new(rel, 0, 1, 0)
+            valBadge.Text = tostring(val)
+            callback(val)
+        end
+    end)
+end
+
+local ModalOverlay = Instance.new("Frame")
+ModalOverlay.Name = "EggFilterModalOverlay"
+ModalOverlay.Size = UDim2.new(1, 0, 1, 0)
+ModalOverlay.BackgroundColor3 = Color3.fromRGB(10, 5, 8)
+ModalOverlay.BackgroundTransparency = 0.4
+ModalOverlay.Visible = false
+ModalOverlay.ZIndex = 50
+ModalOverlay.Parent = Main
+
+local OverlayBackdropBtn = Instance.new("TextButton")
+OverlayBackdropBtn.Size = UDim2.new(1, 0, 1, 0)
+OverlayBackdropBtn.BackgroundTransparency = 1
+OverlayBackdropBtn.Text = ""
+OverlayBackdropBtn.ZIndex = 50
+OverlayBackdropBtn.Parent = ModalOverlay
+OverlayBackdropBtn.MouseButton1Click:Connect(function() ModalOverlay.Visible = false end)
+
+local ModalBox = Instance.new("Frame")
+ModalBox.Size = UDim2.fromOffset(250, 230)
+ModalBox.AnchorPoint = Vector2.new(0.5, 0.5)
+ModalBox.Position = UDim2.new(0.5, 0, 0.5, 0)
+ModalBox.BackgroundColor3 = Color3.fromRGB(24, 12, 16)
+ModalBox.BorderSizePixel = 0
+ModalBox.ZIndex = 51
+ModalBox.Parent = ModalOverlay
+Instance.new("UICorner", ModalBox).CornerRadius = UDim.new(0, 8)
+
+local modalStroke = Instance.new("UIStroke")
+modalStroke.Color = Clr.RedAccent
+modalStroke.Thickness = 1.2
+modalStroke.Parent = ModalBox
+
+local ModalTitle = Instance.new("TextLabel")
+ModalTitle.Size = UDim2.new(1, -70, 0, 24)
+ModalTitle.Position = UDim2.fromOffset(10, 4)
+ModalTitle.BackgroundTransparency = 1
+ModalTitle.Text = "SELECT TARGET EGGS"
+ModalTitle.TextColor3 = Clr.RedGlow
+ModalTitle.Font = Enum.Font.GothamBold
+ModalTitle.TextSize = 11
+ModalTitle.TextXAlignment = Enum.TextXAlignment.Left
+ModalTitle.ZIndex = 55
+ModalTitle.Parent = ModalBox
+
+local ModalCloseBtn = Instance.new("TextButton")
+ModalCloseBtn.Size = UDim2.fromOffset(18, 18)
+ModalCloseBtn.Position = UDim2.new(1, -30, 0, 4)
+
+ModalCloseBtn.Text = "X"
+ModalCloseBtn.TextColor3 = Color3.new(1, 1, 1)
+ModalCloseBtn.Font = Enum.Font.GothamBold
+ModalCloseBtn.TextSize = 13
+ModalCloseBtn.BorderSizePixel = 0
+ModalCloseBtn.ZIndex = 65
+ModalCloseBtn.Parent = ModalBox
+Instance.new("UICorner", ModalCloseBtn).CornerRadius = UDim.new(0, 6)
+ModalCloseBtn.MouseButton1Click:Connect(function() ModalOverlay.Visible = false end)
+
+local QuickRow = Instance.new("Frame")
+QuickRow.Size = UDim2.new(1, -16, 0, 20)
+QuickRow.Position = UDim2.fromOffset(8, 28)
+QuickRow.BackgroundTransparency = 1
+QuickRow.ZIndex = 52
+QuickRow.Parent = ModalBox
+
+local BtnResetOff = Instance.new("TextButton")
+BtnResetOff.Size = UDim2.new(0.48, 0, 1, 0)
+BtnResetOff.BackgroundColor3 = Color3.fromRGB(36, 16, 20)
+BtnResetOff.Text = "Reset All OFF"
+BtnResetOff.TextColor3 = Clr.TextDim
+BtnResetOff.Font = Enum.Font.GothamMedium
+BtnResetOff.TextSize = 9
+BtnResetOff.BorderSizePixel = 0
+BtnResetOff.ZIndex = 53
+BtnResetOff.Parent = QuickRow
+Instance.new("UICorner", BtnResetOff).CornerRadius = UDim.new(0, 4)
+
+local BtnAllGodly = Instance.new("TextButton")
+BtnAllGodly.Size = UDim2.new(0.48, 0, 1, 0)
+BtnAllGodly.Position = UDim2.new(0.52, 0, 0, 0)
+BtnAllGodly.BackgroundColor3 = Color3.fromRGB(56, 18, 26)
+BtnAllGodly.Text = "+ All Godly"
+BtnAllGodly.TextColor3 = Clr.RedGlow
+BtnAllGodly.Font = Enum.Font.GothamMedium
+BtnAllGodly.TextSize = 9
+BtnAllGodly.BorderSizePixel = 0
+BtnAllGodly.ZIndex = 53
+BtnAllGodly.Parent = QuickRow
+Instance.new("UICorner", BtnAllGodly).CornerRadius = UDim.new(0, 4)
+
+local ModalScroll = Instance.new("ScrollingFrame")
+ModalScroll.Size = UDim2.new(1, -16, 1, -54)
+ModalScroll.Position = UDim2.fromOffset(8, 50)
+ModalScroll.BackgroundTransparency = 1
+ModalScroll.BorderSizePixel = 0
+ModalScroll.ScrollBarThickness = 2.5
+ModalScroll.ScrollBarImageColor3 = Clr.RedAccent
+ModalScroll.ZIndex = 52
+ModalScroll.Parent = ModalBox
+
+local modalLayout = Instance.new("UIListLayout")
+modalLayout.SortOrder = Enum.SortOrder.LayoutOrder
+modalLayout.Padding = UDim.new(0, 4)
+modalLayout.Parent = ModalScroll
+modalLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    ModalScroll.CanvasSize = UDim2.new(0, 0, 0, modalLayout.AbsoluteContentSize.Y + 10)
+end)
+
+local BtnEggTrigger = nil
+local EggRowsUI = {}
+
+local function UpdateEggButtonText()
+    if not BtnEggTrigger then return end
+    local count = 0
+    local last = nil
+    for _, item in ipairs(AllEggList) do
+        if State.SelectedEggs[item.name] == true then
+            count = count + 1
+            last = item.name
+        end
+    end
+    if count == 0 then
+        BtnEggTrigger.Text = "None Selected"
+        BtnEggTrigger.TextColor3 = Clr.TextDim
+    elseif count == 1 then
+        BtnEggTrigger.Text = last
+        BtnEggTrigger.TextColor3 = Clr.RedGlow
+    else
+        BtnEggTrigger.Text = string.format("%d Eggs Selected", count)
+        BtnEggTrigger.TextColor3 = Clr.RedGlow
+    end
+end
+
+for idx, item in ipairs(AllEggList) do
+    local row = Instance.new("TextButton")
+    row.Size = UDim2.new(1, 0, 0, 24)
+    row.BackgroundColor3 = Color3.fromRGB(34, 15, 20)
+    row.BorderSizePixel = 0
+    row.Text = ""
+    row.LayoutOrder = idx
+    row.ZIndex = 53
+    row.Parent = ModalScroll
+    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 5)
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -90, 1, 0)
+    lbl.Position = UDim2.fromOffset(8, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = item.name
+    lbl.TextColor3 = Clr.TextMain
+    lbl.Font = Enum.Font.GothamMedium
+    lbl.TextSize = 9.5
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.ZIndex = 54
+    lbl.Parent = row
+
+    local badge = Instance.new("TextLabel")
+    badge.Size = UDim2.fromOffset(50, 16)
+    badge.Position = UDim2.new(1, -82, 0.5, -8)
+    badge.BackgroundTransparency = 1
+    badge.Text = item.tier
+    badge.TextColor3 = TierColors[item.tier] or Clr.TextDim
+    badge.Font = Enum.Font.GothamBold
+    badge.TextSize = 8.5
+    badge.ZIndex = 54
+    badge.Parent = row
+
+    local chk = Instance.new("TextLabel")
+    chk.Size = UDim2.fromOffset(26, 16)
+    chk.Position = UDim2.new(1, -30, 0.5, -8)
+    chk.BackgroundColor3 = Clr.ToggleOff
+    chk.Text = "OFF"
+    chk.TextColor3 = Clr.TextDim
+    chk.Font = Enum.Font.GothamBold
+    chk.TextSize = 8.5
+    chk.BorderSizePixel = 0
+    chk.ZIndex = 54
+    chk.Parent = row
+    Instance.new("UICorner", chk).CornerRadius = UDim.new(0, 4)
+
+    EggRowsUI[item.name] = {Row = row, Chk = chk}
+
+    row.MouseButton1Click:Connect(function()
+        State.SelectedEggs[item.name] = not State.SelectedEggs[item.name]
+        local on = State.SelectedEggs[item.name]
+        chk.Text = on and "ON" or "OFF"
+        chk.BackgroundColor3 = on and Clr.RedAccent or Clr.ToggleOff
+        chk.TextColor3 = on and Color3.new(1, 1, 1) or Clr.TextDim
+        UpdateEggButtonText()
+        if State.EggESP then UpdateESP(true) end
+    end)
+end
+
+BtnResetOff.MouseButton1Click:Connect(function()
+    for _, item in ipairs(AllEggList) do
+        State.SelectedEggs[item.name] = false
+        local ui = EggRowsUI[item.name]
+        if ui then
+            ui.Chk.Text = "OFF"
+            ui.Chk.BackgroundColor3 = Clr.ToggleOff
+            ui.Chk.TextColor3 = Clr.TextDim
+        end
+    end
+    UpdateEggButtonText()
+    if State.EggESP then UpdateESP(true) end
+end)
+
+BtnAllGodly.MouseButton1Click:Connect(function()
+    for _, item in ipairs(AllEggList) do
+        if item.tier == "Godly" then
+            State.SelectedEggs[item.name] = true
+            local ui = EggRowsUI[item.name]
+            if ui then
+                ui.Chk.Text = "ON"
+                ui.Chk.BackgroundColor3 = Clr.RedAccent
+                ui.Chk.TextColor3 = Color3.new(1, 1, 1)
+            end
+        end
+    end
+    UpdateEggButtonText()
+    if State.EggESP then UpdateESP(true) end
+end)
+
+local pHarvest   = CreateTab("Harvest",   10734965572, 1)
+local pSanctuary = CreateTab("Plot",       6031265976, 2)
+local pRadar     = CreateTab("Egg Radar",  6031763426, 3)
+local pTeleport  = CreateTab("Teleport",   6031154871, 4)
+local pMovement  = CreateTab("Movement",   6034287594, 5)
+local pSystem    = CreateTab("System",     6031280882, 6)
+
+Pages["Harvest"].Visible = true
+TabButtons["Harvest"].Btn.BackgroundTransparency = 0
+TabButtons["Harvest"].Btn.BackgroundColor3 = Color3.fromRGB(48, 18, 24)
+TabButtons["Harvest"].Label.TextColor3 = Clr.TextMain
+TabButtons["Harvest"].Icon.ImageColor3 = Clr.RedGlow
+TabButtons["Harvest"].Bar.Visible = true
+
+local MonitorCard = Instance.new("Frame")
+MonitorCard.Size = UDim2.new(1, 0, 0, 68)
+MonitorCard.BackgroundColor3 = Color3.fromRGB(26, 12, 16)
+MonitorCard.BorderSizePixel = 0
+MonitorCard.LayoutOrder = 1
+MonitorCard.Parent = pHarvest
+Instance.new("UICorner", MonitorCard).CornerRadius = UDim.new(0, 8)
+local mStroke = Instance.new("UIStroke")
+mStroke.Color = Clr.CardBorder
+mStroke.Thickness = 1
+mStroke.Parent = MonitorCard
+
+local MTitle = Instance.new("TextLabel")
+MTitle.Size = UDim2.new(0.5, 0, 0, 16)
+MTitle.Position = UDim2.fromOffset(10, 6)
+MTitle.BackgroundTransparency = 1
+MTitle.Text = "ENGINE MONITOR"
+MTitle.TextColor3 = Clr.TextDim
+MTitle.Font = Enum.Font.GothamBold
+MTitle.TextSize = 9.5
+MTitle.TextXAlignment = Enum.TextXAlignment.Left
+MTitle.Parent = MonitorCard
+
+local MStatus = Instance.new("TextLabel")
+MStatus.Size = UDim2.fromOffset(120, 16)
+MStatus.Position = UDim2.new(1, -130, 0, 6)
+MStatus.BackgroundTransparency = 1
+MStatus.Text = "Status: Idle"
+MStatus.TextColor3 = Color3.fromRGB(130, 240, 160)
+MStatus.Font = Enum.Font.GothamBold
+MStatus.TextSize = 9.5
+MStatus.TextXAlignment = Enum.TextXAlignment.Right
+MStatus.Parent = MonitorCard
+
+local MTarget = Instance.new("TextLabel")
+MTarget.Size = UDim2.new(1, -20, 0, 14)
+MTarget.Position = UDim2.fromOffset(10, 26)
+MTarget.BackgroundTransparency = 1
+MTarget.Text = "Target: None [None]"
+MTarget.TextColor3 = Clr.TextMain
+MTarget.Font = Enum.Font.GothamMedium
+MTarget.TextSize = 9.5
+MTarget.TextXAlignment = Enum.TextXAlignment.Left
+MTarget.Parent = MonitorCard
+
+local MMeta = Instance.new("TextLabel")
+MMeta.Size = UDim2.new(1, -20, 0, 14)
+MMeta.Position = UDim2.fromOffset(10, 44)
+MMeta.BackgroundTransparency = 1
+MMeta.Text = "Harvested: 0 | Engine: Fast Delivery"
+MMeta.TextColor3 = Clr.RedGlow
+MMeta.Font = Enum.Font.Gotham
+MMeta.TextSize = 9
+MMeta.TextXAlignment = Enum.TextXAlignment.Left
+MMeta.Parent = MonitorCard
+
+UpdateMonitorUI = function()
+    MStatus.Text = "Status: " .. State.Status
+    if State.Status == "Farming" or string.find(State.Status, "Taking") then
+        MStatus.TextColor3 = Color3.fromRGB(255, 185, 80)
+    elseif string.find(State.Status, "Base") or string.find(State.Status, "Claim") or string.find(State.Status, "Storing") then
+        MStatus.TextColor3 = Color3.fromRGB(100, 210, 255)
+    else
+        MStatus.TextColor3 = Color3.fromRGB(130, 240, 160)
+    end
+    MTarget.Text = "Target: " .. State.TargetName .. " [" .. State.TargetRarity .. "]"
+    MMeta.Text = string.format("Harvested: %d | Return Spd: %d", State.EggCount, State.ReturnSpeed)
+end
+
+MakeToggle(pHarvest, "Auto Farm", "Collect selected eggs & deliver to base", false, 2, function(v)
+    State.MasterFarm = v
+    if v then
+        State.Status = "Searching..."
+        UpdateMonitorUI()
+        task.spawn(function()
+            if not State.BaseCFrame then
+                State.BaseCFrame = FindMyPlot()
+            end
+            local deliveryAttempts = 0
+            while State.MasterFarm and State.Running do
+                if not HasAnyEggSelected() then
+                    State.Status = "Select Eggs First!"
+                    State.TargetName = "None"
+                    State.TargetRarity = "None"
+                    UpdateMonitorUI()
+                    task.wait(0.5)
+                else
+                    if IsCarryingEgg() then
+                        deliveryAttempts = deliveryAttempts + 1
+                        State.Status = "Delivering Held Egg..."
+                        UpdateMonitorUI()
+                        PerformFullDelivery()
+                        task.wait(0.15)
+
+                        if deliveryAttempts >= 2 then
+                            ClickOrActivateEgg()
+                            local hum = GetHum()
+                            if hum then hum:UnequipTools() end
+                            deliveryAttempts = 0
+                            task.wait(0.2)
+                        end
+                    else
+                        deliveryAttempts = 0
+                        local eggs = FindEggsInMap()
+                        if #eggs > 0 then
+                            local egg = eggs[1]
+                            State.Status = "Farming"
+                            State.TargetName = egg.Name
+                            State.TargetRarity = egg.Tier
+                            UpdateMonitorUI()
+
+                            State.Status = "Taking Egg..."
+                            UpdateMonitorUI()
+
+                            local success = PerformEggPickup(egg)
+
+                            if success or IsCarryingEgg() then
+                                State.Status = "Delivering to Base..."
+                                UpdateMonitorUI()
+
+                                PerformFullDelivery()
+
+                                State.EggCount = State.EggCount + 1
+                                IgnoredEggs[egg.Object] = os.clock() + 30
+                                if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 30 end
+                            else
+                                State.Status = "Missed, Next..."
+                                UpdateMonitorUI()
+                                IgnoredEggs[egg.Object] = os.clock() + 4
+                                if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 4 end
+                            end
+
+                            State.Status = "Searching Next..."
+                            State.TargetName = "None"
+                            State.TargetRarity = "None"
+                            UpdateMonitorUI()
+                            task.wait(0.15)
+                        else
+                            State.Status = "Scanning Eggs..."
+                            State.TargetName = "None"
+                            State.TargetRarity = "None"
+                            UpdateMonitorUI()
+                        end
+                    end
+                end
+                task.wait(0.2)
+            end
+            State.Status = "Idle"
+            State.TargetName = "None"
+            State.TargetRarity = "None"
+            UpdateMonitorUI()
+        end)
+    else
+        State.Status = "Idle"
+        State.TargetName = "None"
+        State.TargetRarity = "None"
+        UpdateMonitorUI()
+    end
+end)
+
+MakeToggle(pHarvest, "Instant Farm", "Instantly teleport to eggs and collect them", false, 3, function(v)
+    State.InstantFarm = v
+    if v then
+        State.Status = "Searching (Instant)..."
+        UpdateMonitorUI()
+        task.spawn(function()
+            if not State.BaseCFrame then
+                State.BaseCFrame = FindMyPlot()
+            end
+            local deliveryAttempts = 0
+            while State.InstantFarm and State.Running do
+                if not HasAnyEggSelected() then
+                    State.Status = "Select Eggs First!"
+                    State.TargetName = "None"
+                    State.TargetRarity = "None"
+                    UpdateMonitorUI()
+                    task.wait(0.5)
+                else
+                    if IsCarryingEgg() then
+                        deliveryAttempts = deliveryAttempts + 1
+                        State.Status = "Instant Storing..."
+                        UpdateMonitorUI()
+                        PerformInstantDelivery()
+                        task.wait(0.1)
+
+                        if deliveryAttempts >= 2 then
+                            ClickOrActivateEgg()
+                            local hum = GetHum()
+                            if hum then hum:UnequipTools() end
+                            deliveryAttempts = 0
+                            task.wait(0.15)
+                        end
+                    else
+                        deliveryAttempts = 0
+                        local eggs = FindEggsInMap()
+                        if #eggs > 0 then
+                            local egg = eggs[1]
+                            State.Status = "Instant Taking..."
+                            State.TargetName = egg.Name
+                            State.TargetRarity = egg.Tier
+                            UpdateMonitorUI()
+
+                            local success = PerformInstantPickup(egg)
+
+                            if success or IsCarryingEgg() then
+                                State.Status = "Instant Claiming..."
+                                UpdateMonitorUI()
+
+                                PerformInstantDelivery()
+
+                                State.EggCount = State.EggCount + 1
+                                IgnoredEggs[egg.Object] = os.clock() + 30
+                                if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 30 end
+                            else
+                                IgnoredEggs[egg.Object] = os.clock() + 4
+                                if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 4 end
+                            end
+
+                            task.wait(0.1)
+                        else
+                            State.Status = "Scanning Eggs..."
+                            State.TargetName = "None"
+                            State.TargetRarity = "None"
+                            UpdateMonitorUI()
+                        end
+                    end
+                end
+                task.wait(0.15)
+            end
+            State.Status = "Idle"
+            State.TargetName = "None"
+            State.TargetRarity = "None"
+            UpdateMonitorUI()
+        end)
+    else
+        State.Status = "Idle"
+        State.TargetName = "None"
+        State.TargetRarity = "None"
+        UpdateMonitorUI()
+    end
+end)
+
+local eggCard = MakeCard(pHarvest, "Target Egg Filter", "Select which eggs to collect", 4)
+BtnEggTrigger = Instance.new("TextButton")
+BtnEggTrigger.Size = UDim2.fromOffset(88, 22)
+BtnEggTrigger.Position = UDim2.new(1, -96, 0.5, -11)
+BtnEggTrigger.BackgroundColor3 = Color3.fromRGB(42, 16, 22)
+BtnEggTrigger.BorderSizePixel = 0
+BtnEggTrigger.Text = "None Selected"
+BtnEggTrigger.TextColor3 = Clr.TextDim
+BtnEggTrigger.Font = Enum.Font.GothamBold
+BtnEggTrigger.TextSize = 9
+BtnEggTrigger.Parent = eggCard
+Instance.new("UICorner", BtnEggTrigger).CornerRadius = UDim.new(0, 5)
+local rStroke = Instance.new("UIStroke")
+rStroke.Color = Clr.CardBorder
+rStroke.Thickness = 1
+rStroke.Parent = BtnEggTrigger
+BtnEggTrigger.MouseButton1Click:Connect(function() ModalOverlay.Visible = true end)
+
+MakeSlider(pHarvest, "Speed", 50, 600, State.ReturnSpeed, 5, function(v)
+    State.ReturnSpeed = v
+    UpdateMonitorUI()
+end)
+
+MakeToggle(pSanctuary, "Auto Deploy All Eggs", "Automatically plants eggs", false, 1, function(v)
+    State.AutoDeploy = v
+    if v then
+        task.spawn(function()
+            while State.AutoDeploy and State.Running do
+                local root = GetRoot()
+                local hum = GetHum()
+                local char = LP.Character
+                local bp = LP:FindFirstChild("Backpack")
+
+                if root and hum and char and bp then
+                    local eggTool = nil
+                    for _, item in ipairs(char:GetChildren()) do
+                        if item:IsA("Tool") and string.find(string.lower(item.Name), "egg") then
+                            eggTool = item
+                            break
+                        end
+                    end
+                    if not eggTool then
+                        for _, item in ipairs(bp:GetChildren()) do
+                            if item:IsA("Tool") and string.find(string.lower(item.Name), "egg") then
+                                eggTool = item
+                                break
+                            end
+                        end
+                    end
+
+                    if eggTool then
+                        local baseCFrame = State.BaseCFrame or FindMyPlot()
+                        local basePos = baseCFrame and baseCFrame.Position or root.Position
+                        
+                        if (root.Position - basePos).Magnitude > 100 then
+                            root.CFrame = CFrame.new(basePos + Vector3.new(0, 2.5, 0))
+                            task.wait(0.15)
+                        end
+
+                        if eggTool.Parent ~= char then
+                            hum:EquipTool(eggTool)
+                            task.wait(0.12)
+                        end
+
+                        pcall(function() eggTool:Activate() end)
+                        
+                        pcall(function()
+                            VirtualUser:CaptureController()
+                            local cam = Workspace.CurrentCamera
+                            local center = cam and Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2) or Vector2.zero
+                            VirtualUser:ClickButton1(center)
+                        end)
+
+                        if EggPlacedRemote then
+                            SafeFire(EggPlacedRemote, {})
+                        end
+
+                        local plotObj = State.PlotObject or FindMyPlot()
+                        if plotObj and typeof(plotObj) == "Instance" then
+                            for _, prompt in ipairs(plotObj:GetDescendants()) do
+                                if prompt:IsA("ProximityPrompt") and prompt.Enabled then
+                                    local txt = string.lower(prompt.ActionText)
+                                    if string.find(txt, "place") or string.find(txt, "plant") or string.find(txt, "tanam") then
+                                        TriggerPromptInstant(prompt)
+                                    end
+                                end
+                            end
+                        end
+
+                        task.wait(0.35)
+                    end
+                end
+                task.wait(0.5)
+            end
+        end)
+    end
+end)
+
+MakeToggle(pSanctuary, "Auto Collect Cash / Drops", "Automatically collect pet drops and cash", false, 2, function(v)
+    State.AutoCollect = v
+    if v then
+        task.spawn(function()
+            while State.AutoCollect and State.Running do
+                if GameRemotes then
+                    local pc = GameRemotes:FindFirstChild("PetCollect") or GameRemotes:FindFirstChild("CollectCash") or GameRemotes:FindFirstChild("ClaimDrops")
+                    if pc then SafeFire(pc) end
+                end
+                task.wait(1.2)
+            end
+        end)
+    end
+end)
+
+MakeToggle(pSanctuary, "Auto Feed All Pets", "Feed all pets to level up faster", false, 3, function(v)
+    State.AutoFeed = v
+    if v then
+        task.spawn(function()
+            while State.AutoFeed and State.Running do
+                if GameRemotes then
+                    local fp = GameRemotes:FindFirstChild("FeedPet") or (PlotRemotes and PlotRemotes:FindFirstChild("FeedPet"))
+                    if fp then SafeFire(fp) end
+                end
+                task.wait(2.2)
+            end
+        end)
+    end
+end)
+
+MakeToggle(pSanctuary, "Auto Hatch Incubation", "Automatically hatch ready incubated eggs", false, 4, function(v)
+    State.AutoHatch = v
+    if v then
+        task.spawn(function()
+            while State.AutoHatch and State.Running do
+                local h = GameRemotes and (GameRemotes:FindFirstChild("Hatch") or GameRemotes:FindFirstChild("HatchEgg") or GameRemotes:FindFirstChild("OpenEgg"))
+                if h then
+                    SafeFire(h)
+                    SafeFire(h, "Plant1")
+                    SafeFire(h, 1)
+                end
+                local searchTarget = State.PlotObject or Workspace
+                for _, prompt in ipairs(searchTarget:GetDescendants()) do
+                    if prompt:IsA("ProximityPrompt") then
+                        local txt = string.lower(prompt.ActionText) .. " " .. string.lower(prompt.ObjectText)
+                        if string.find(txt, "hatch") or string.find(txt, "open") or string.find(txt, "claim") then
+                            TriggerPromptInstant(prompt)
+                        end
+                    end
+                end
+                task.wait(1.5)
+            end
+        end)
+    end
+end)
+
+MakeToggle(pSanctuary, "Auto Upgrade Plot & Nests", "Upgrade plots and nests periodically", false, 5, function(v)
+    State.AutoUpgrade = v
+    if v then
+        task.spawn(function()
+            while State.AutoUpgrade and State.Running do
+                if PlotRemotes then
+                    local n = PlotRemotes:FindFirstChild("Nests")
+                    local u = PlotRemotes:FindFirstChild("Upgrades")
+                    if n then SafeFire(n) end
+                    if u then SafeFire(u) end
+                end
+                task.wait(3.5)
+            end
+        end)
+    end
+end)
+
+MakeToggle(pRadar, "Egg Radar (ESP)", "Highlight wild eggs on map with tags", false, 1, function(v)
+    State.EggESP = v
+    UpdateESP(v)
+    if v then
+        task.spawn(function()
+            while State.EggESP and State.Running do
+                task.wait(3.0)
+                if State.EggESP and State.Running then UpdateESP(true) end
+            end
+        end)
+    end
+end)
+
+MakeButton(pRadar, "Refresh Radar Scan", 2, function()
+    if State.EggESP then UpdateESP(true) end
+end)
+
+MakeButton(pTeleport, "Teleport to My Plot", 1, function()
+    if GameRemotes and GameRemotes:FindFirstChild("TeleportToPlot") then
+        SafeFire(GameRemotes.TeleportToPlot)
+    end
+    local targetPos = State.BaseCFrame or FindMyPlot()
+    local root = GetRoot()
+    if root and targetPos then
+        root.CFrame = targetPos + Vector3.new(0, 3, 0)
+    end
+end)
+
+MakeToggle(pMovement, "Hover Fly (Universal)", "Fly freely in all directions", false, 1, function(v)
+    ToggleFly(v)
+end)
+
+MakeSlider(pMovement, "Fly Speed", 20, 250, 75, 2, function(v) State.FlySpeed = v end)
+MakeSlider(pMovement, "Walk Speed", 16, 200, 16, 3, function(v) 
+    State.WalkSpeed = v 
+    local hum = GetHum()
+    if hum then hum.WalkSpeed = v end
+end)
+MakeSlider(pMovement, "Jump Power", 50, 300, 50, 4, function(v) 
+    State.JumpPower = v 
+    local hum = GetHum()
+    if hum then 
+        hum.UseJumpPower = true
+        hum.JumpPower = v 
+    end
+end)
+
+local ProfileCard = Instance.new("Frame")
+ProfileCard.Size = UDim2.new(1, 0, 0, 64)
+ProfileCard.BackgroundColor3 = Color3.fromRGB(26, 12, 16)
+ProfileCard.BorderSizePixel = 0
+ProfileCard.LayoutOrder = 1
+ProfileCard.Parent = pSystem
+Instance.new("UICorner", ProfileCard).CornerRadius = UDim.new(0, 8)
+
+local pStroke = Instance.new("UIStroke")
+pStroke.Color = Clr.CardBorder
+pStroke.Thickness = 1
+pStroke.Parent = ProfileCard
+
+local AvatarImg = Instance.new("ImageLabel")
+AvatarImg.Size = UDim2.fromOffset(46, 46)
+AvatarImg.Position = UDim2.fromOffset(9, 9)
+AvatarImg.BackgroundColor3 = Color3.fromRGB(36, 16, 22)
+AvatarImg.Image = "rbxthumb://type=AvatarHeadShot&id=" .. LP.UserId .. "&w=150&h=150"
+AvatarImg.BorderSizePixel = 0
+AvatarImg.Parent = ProfileCard
+Instance.new("UICorner", AvatarImg).CornerRadius = UDim.new(1, 0)
+
+local aStroke = Instance.new("UIStroke")
+aStroke.Color = Clr.RedGlow
+aStroke.Thickness = 1.5
+aStroke.Parent = AvatarImg
+
+local DisplayNameLbl = Instance.new("TextLabel")
+DisplayNameLbl.Size = UDim2.new(1, -70, 0, 16)
+DisplayNameLbl.Position = UDim2.fromOffset(64, 8)
+DisplayNameLbl.BackgroundTransparency = 1
+DisplayNameLbl.Text = LP.DisplayName
+DisplayNameLbl.TextColor3 = Clr.TextMain
+DisplayNameLbl.Font = Enum.Font.GothamBold
+DisplayNameLbl.TextSize = 12
+DisplayNameLbl.TextXAlignment = Enum.TextXAlignment.Left
+DisplayNameLbl.Parent = ProfileCard
+
+local UsernameLbl = Instance.new("TextLabel")
+UsernameLbl.Size = UDim2.new(1, -70, 0, 14)
+UsernameLbl.Position = UDim2.fromOffset(64, 24)
+UsernameLbl.BackgroundTransparency = 1
+UsernameLbl.Text = "@" .. LP.Name .. "  •  ID: " .. tostring(LP.UserId)
+UsernameLbl.TextColor3 = Clr.TextDim
+UsernameLbl.Font = Enum.Font.GothamMedium
+UsernameLbl.TextSize = 9
+UsernameLbl.TextXAlignment = Enum.TextXAlignment.Left
+UsernameLbl.Parent = ProfileCard
+
+local execName = (identifyexecutor and identifyexecutor()) or "Executor"
+local UserMetaLbl = Instance.new("TextLabel")
+UserMetaLbl.Size = UDim2.new(1, -70, 0, 14)
+UserMetaLbl.Position = UDim2.fromOffset(64, 40)
+UserMetaLbl.BackgroundTransparency = 1
+UserMetaLbl.Text = "Account: " .. LP.AccountAge .. " Days  |  " .. execName
+UserMetaLbl.TextColor3 = Clr.RedGlow
+UserMetaLbl.Font = Enum.Font.Gotham
+UserMetaLbl.TextSize = 8.5
+UserMetaLbl.TextXAlignment = Enum.TextXAlignment.Left
+UserMetaLbl.Parent = ProfileCard
+
+local StatsCard = Instance.new("Frame")
+StatsCard.Size = UDim2.new(1, 0, 0, 36)
+StatsCard.BackgroundColor3 = Clr.Card
+StatsCard.BorderSizePixel = 0
+StatsCard.LayoutOrder = 2
+StatsCard.Parent = pSystem
+Instance.new("UICorner", StatsCard).CornerRadius = UDim.new(0, 7)
+
+local sStroke = Instance.new("UIStroke")
+sStroke.Color = Clr.CardBorder
+sStroke.Thickness = 1
+sStroke.Parent = StatsCard
+
+local LiveStatsLbl = Instance.new("TextLabel")
+LiveStatsLbl.Size = UDim2.new(1, -20, 1, 0)
+LiveStatsLbl.Position = UDim2.fromOffset(10, 0)
+LiveStatsLbl.BackgroundTransparency = 1
+LiveStatsLbl.Text = "FPS: Scanning...  |  Ping: ...ms  |  Server: OK"
+LiveStatsLbl.TextColor3 = Color3.fromRGB(130, 240, 160)
+LiveStatsLbl.Font = Enum.Font.GothamMedium
+LiveStatsLbl.TextSize = 9.5
+LiveStatsLbl.TextXAlignment = Enum.TextXAlignment.Left
+LiveStatsLbl.Parent = StatsCard
+
+task.spawn(function()
+    local lastTime = os.clock()
+    local frameCount = 0
+    local fps = 60
+    RunService.RenderStepped:Connect(function()
+        frameCount = frameCount + 1
+        local curTime = os.clock()
+        if curTime - lastTime >= 1 then
+            fps = frameCount
+            frameCount = 0
+            lastTime = curTime
+            if State.Running and LiveStatsLbl and LiveStatsLbl.Parent then
+                local ping = "0"
+                pcall(function()
+                    local statsItem = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]
+                    if statsItem then ping = string.split(statsItem:GetValueString(), " ")[1] end
+                end)
+                LiveStatsLbl.Text = string.format("FPS: %d  |  Ping: %s ms  |  Job: %s", fps, ping, string.sub(game.JobId, 1, 8))
+            end
+        end
+    end)
+end)
+
+MakeButton(pSystem, "Claim Free Server Gifts", 3, function()
+    if ReusableRemotes then
+        local cg = ReusableRemotes:FindFirstChild("ClaimGroupReward")
+        local ce = ReusableRemotes:FindFirstChild("ClaimEventReward")
+        local r = ReusableRemotes:FindFirstChild("Roulette")
+        if cg then SafeFire(cg) end
+        if ce then SafeFire(ce) end
+        if r then SafeFire(r) end
+    end
+    if GameRemotes then
+        local ci = GameRemotes:FindFirstChild("ClaimIndexReward")
+        local oe = GameRemotes:FindFirstChild("OfflineEarnings")
+        if ci then SafeFire(ci) end
+        if oe then SafeFire(oe) end
+    end
+end)
+
+MakeButton(pSystem, "Rejoin Current Server", 4, function()
+    local ts = game:GetService("TeleportService")
+    if #Players:GetPlayers() <= 1 then
+        LP:Kick("\nYour Account has been banned by ERDEVA!")
+        task.wait(0.2)
+        ts:Teleport(game.PlaceId, LP)
+    else
+        ts:TeleportToPlaceInstance(game.PlaceId, game.JobId, LP)
+    end
+end)
+
+MakeButton(pSystem, "FPS Booster", 5, function()
+    pcall(function()
+        local lighting = game:GetService("Lighting")
+        lighting.GlobalShadows = false
+        lighting.FogEnd = 9e9
+        lighting.Brightness = 1
+
+        for _, v in ipairs(lighting:GetChildren()) do
+            if v:IsA("PostEffect") or v:IsA("Atmosphere") or v:IsA("Clouds") then
+                v.Enabled = false
+            end
+        end
+    end)
+
+    pcall(function()
+        local terrain = Workspace:FindFirstChildOfClass("Terrain")
+        if terrain then
+            terrain.Decoration = false
+            terrain.WaterWaveSize = 0
+            terrain.WaterWaveSpeed = 0
+            terrain.WaterReflectance = 0
+            terrain.WaterTransparency = 0
+        end
+    end)
+
+    local function HideEntity(model)
+        if not model or model == LP.Character or model:IsDescendantOf(LP.Character) then
+            return
+        end
+
+        pcall(function()
+            for _, obj in ipairs(model:GetDescendants()) do
+                if obj:IsA("BasePart") then
+                    obj.Transparency = 1
+                    obj.CastShadow = false
+                    obj.CanCollide = false
+
+                elseif obj:IsA("Decal") or obj:IsA("Texture") then
+                    obj.Transparency = 1
+
+                elseif obj:IsA("BillboardGui") or obj:IsA("SurfaceGui") or obj:IsA("Highlight") then
+                    obj.Enabled = false
+
+                elseif obj:IsA("ParticleEmitter")
+                    or obj:IsA("Trail")
+                    or obj:IsA("Beam")
+                    or obj:IsA("Smoke")
+                    or obj:IsA("Fire")
+                    or obj:IsA("Sparkles") then
+                    obj.Enabled = false
+
+                elseif obj:IsA("Animator") or obj:IsA("AnimationController") then
+                    for _, track in ipairs(obj:GetPlayingAnimationTracks()) do
+                        track:Stop(0)
+                    end
+                end
+            end
+        end)
+    end
+
+    local NPCNames = {
+        Rick = true,
+        Tim = true,
+        Richie = true,
+        Eggo = true,
+        GirlBacon = true,
+        BoyBacon = true
+    }
+
+    -- Hide NPC yang sudah ada
+    pcall(function()
+        local stalls = Workspace:FindFirstChild("Stalls")
+        if stalls then
+            for _, npcName in ipairs({"Rick", "Tim", "Richie", "Eggo"}) do
+                local npc = stalls:FindFirstChild(npcName, true)
+                if npc then
+                    HideEntity(npc)
+                end
+            end
+        end
+
+        local functionals = Workspace:FindFirstChild("Functionals")
+        if functionals then
+            for _, baconName in ipairs({"GirlBacon", "BoyBacon"}) do
+                local bacon = functionals:FindFirstChild(baconName, true)
+                if bacon then
+                    HideEntity(bacon)
+                end
+            end
+        end
+    end)
+
+    -- Hide player lain
+    pcall(function()
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= LP and plr.Character then
+                HideEntity(plr.Character)
+            end
+        end
+
+        Players.PlayerAdded:Connect(function(plr)
+            plr.CharacterAdded:Connect(function(char)
+                HideEntity(char)
+            end)
+        end)
+    end)
+
+    -- Potato Mode
+    pcall(function()
+        for _, v in ipairs(Workspace:GetDescendants()) do
+            if not v:IsDescendantOf(LP.Character) then
+                local isEgg = string.find(string.lower(v.Name), "egg")
+
+                if v:IsA("BasePart") and not isEgg then
+                    v.Material = Enum.Material.SmoothPlastic
+                    v.CastShadow = false
+                    v.Reflectance = 0
+
+                elseif (v:IsA("Decal") or v:IsA("Texture")) and not isEgg then
+                    v.Transparency = 1
+
+                elseif v:IsA("ParticleEmitter")
+                    or v:IsA("Trail")
+                    or v:IsA("Beam")
+                    or v:IsA("Smoke")
+                    or v:IsA("Fire")
+                    or v:IsA("Sparkles") then
+                    v.Enabled = false
+
+                elseif v:IsA("Light") or v:IsA("Highlight") then
+                    v.Enabled = false
+                end
+            end
+        end
+    end)
+
+    -- Proses object baru tanpa timer / task.wait
+    Workspace.DescendantAdded:Connect(function(newObj)
+        if newObj:IsDescendantOf(LP.Character) then
+            return
+        end
+
+        pcall(function()
+            local model = newObj:IsA("Model") and newObj
+                or newObj:FindFirstAncestorOfClass("Model")
+
+            if model and NPCNames[model.Name] then
+                HideEntity(model)
+                return
+            end
+
+            if newObj:IsA("ParticleEmitter")
+                or newObj:IsA("Trail")
+                or newObj:IsA("Beam")
+                or newObj:IsA("Smoke")
+                or newObj:IsA("Fire")
+                or newObj:IsA("Sparkles") then
+                newObj.Enabled = false
+
+            elseif newObj:IsA("Light") or newObj:IsA("Highlight") then
+                newObj.Enabled = false
+
+            elseif newObj:IsA("Animator") or newObj:IsA("AnimationController") then
+                for _, track in ipairs(newObj:GetPlayingAnimationTracks()) do
+                    track:Stop(0)
+                end
+
+            elseif newObj:IsA("Decal") or newObj:IsA("Texture") then
+                if not string.find(string.lower(newObj.Name), "egg") then
+                    newObj.Transparency = 1
+                end
+            end
+        end)
+    end)
+
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "FPS Booster",
+        Text = "FPS Booster Active!",
+        Duration = 3
+    })
+end)
+
+MakeButton(pSystem, "Destroy GUI", 6, DestroyAll)
+
+game:GetService("StarterGui"):SetCore("SendNotification", {
+    Title = "Erdeva Hub",
+    Text = "Script Loaded!",
+    Duration = 6
+})
