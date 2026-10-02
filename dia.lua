@@ -241,6 +241,11 @@ local function IsCarryingEgg()
     local char = LP.Character
     if not char then return false end
 
+    if char:FindFirstChild("HeldEggDisplay") then
+        if carryTimeout == 0 then carryTimeout = os.clock() end
+        return true
+    end
+
     for _, item in ipairs(char:GetChildren()) do
         if item:IsA("Model") and item ~= char then
             local n = string.lower(item.Name)
@@ -334,6 +339,20 @@ local function GetEggUUID(eggObj)
         end
     end
     return nil
+end
+
+local LairDoorPosition = Vector3.new(-4964.66, 41290.65, -3663.98)
+
+local function CheckAndPassDoor(egg)
+    local root = GetRoot()
+    if not root or not egg or not egg.Part then return end
+    local isLairEgg = string.find(string.lower(egg.Name), "volcan") or (egg.Part.Position - Vector3.new(-5329, 40911, -3580)).Magnitude < 400
+    if isLairEgg then
+        SetCharacterNoclip(true)
+        root.CFrame = CFrame.new(LairDoorPosition)
+        root.AssemblyLinearVelocity = Vector3.zero
+        task.wait(0.2)
+    end
 end
 
 local function SnapToTarget(targetPos)
@@ -441,6 +460,8 @@ local function PerformEggPickup(egg)
     local root = GetRoot()
     if not root or not egg or not egg.Part then return false end
 
+    CheckAndPassDoor(egg)
+
     SetCharacterNoclip(true)
     SnapToTarget(egg.Part.Position)
     task.wait(0.12)
@@ -487,6 +508,8 @@ end
 local function PerformInstantPickup(egg)
     local root = GetRoot()
     if not root or not egg or not egg.Part then return false end
+
+    CheckAndPassDoor(egg)
 
     SetCharacterNoclip(true)
     root.CFrame = CFrame.new(egg.Part.Position + Vector3.new(0, 0.5, 0))
