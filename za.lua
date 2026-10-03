@@ -729,16 +729,16 @@ heartbeatConn = RunService.Heartbeat:Connect(function()
 end)
 
 local Clr = {
-    MainBg     = Color3.fromRGB(16, 7, 10),
-    Sidebar    = Color3.fromRGB(27, 9, 14),
-    Card       = Color3.fromRGB(36, 13, 19),
-    CardBorder = Color3.fromRGB(99, 28, 41),
+    MainBg     = Color3.fromRGB(13, 13, 16),
+    Sidebar    = Color3.fromRGB(19, 15, 18),
+    Card       = Color3.fromRGB(25, 20, 23),
+    CardBorder = Color3.fromRGB(83, 38, 50),
     RedAccent  = Color3.fromRGB(220, 20, 60),
-    RedDark    = Color3.fromRGB(130, 12, 35),
-    RedGlow    = Color3.fromRGB(255, 86, 116),
-    TextMain   = Color3.fromRGB(255, 242, 245),
-    TextDim    = Color3.fromRGB(201, 151, 162),
-    ToggleOff  = Color3.fromRGB(64, 21, 30),
+    RedDark    = Color3.fromRGB(116, 18, 39),
+    RedGlow    = Color3.fromRGB(247, 82, 108),
+    TextMain   = Color3.fromRGB(244, 239, 241),
+    TextDim    = Color3.fromRGB(170, 153, 158),
+    ToggleOff  = Color3.fromRGB(50, 41, 45),
     Discord    = Color3.fromRGB(88, 101, 242),
     DiscordDark= Color3.fromRGB(60, 70, 180)
 }
@@ -783,8 +783,8 @@ MainStroke.Parent = Main
 
 local MainGradient = Instance.new("UIGradient")
 MainGradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(29, 8, 14)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(14, 5, 8))
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 17, 20)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(11, 11, 14))
 })
 MainGradient.Rotation = 90
 MainGradient.Parent = Main
@@ -829,8 +829,8 @@ Instance.new("UICorner", Sidebar).CornerRadius = UDim.new(0, 12)
 
 local SidebarGradient = Instance.new("UIGradient")
 SidebarGradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(42, 11, 20)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(24, 7, 13))
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(27, 19, 23)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(17, 14, 17))
 })
 SidebarGradient.Rotation = 90
 SidebarGradient.Parent = Sidebar
@@ -897,7 +897,7 @@ TabList.Parent = TabContainer
 local DiscordCard = Instance.new("TextButton")
 DiscordCard.Size = UDim2.fromOffset(134, 24)
 DiscordCard.Position = UDim2.new(1, -198, 0, 9)
-DiscordCard.BackgroundColor3 = Color3.fromRGB(62, 16, 29)
+DiscordCard.BackgroundColor3 = Color3.fromRGB(32, 22, 27)
 DiscordCard.BorderSizePixel = 0
 DiscordCard.AutoButtonColor = false
 DiscordCard.Text = ""
@@ -956,7 +956,7 @@ DiscordCard.MouseButton1Click:Connect(function()
         DiscordTitle.Text = "discord.gg/fTv3aKA9Ed"
         DiscordTitle.TextColor3 = Color3.fromRGB(210, 220, 255)
         DiscordTitle.Font = Enum.Font.GothamMedium
-        TweenService:Create(DiscordCard, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(62, 16, 29)}):Play()
+        TweenService:Create(DiscordCard, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(32, 22, 27)}):Play()
     end)
 end)
 
@@ -990,7 +990,7 @@ end
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.fromOffset(20, 20)
 CloseBtn.Position = UDim2.new(1, -30, 0, 11)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(42, 12, 16)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(48, 22, 29)
 CloseBtn.Text = "x"
 CloseBtn.TextColor3 = Clr.RedGlow
 CloseBtn.Font = Enum.Font.GothamBold
@@ -1041,21 +1041,13 @@ local function CreateTab(name, assetId, order)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, 0, 0, 28)
     btn.Position = UDim2.new()
-    btn.BackgroundColor3 = Color3.fromRGB(72, 17, 32)
+    btn.BackgroundColor3 = Color3.fromRGB(48, 23, 31)
     btn.BackgroundTransparency = 1
     btn.Text = ""
     btn.BorderSizePixel = 0
     btn.LayoutOrder = order
     btn.Parent = TabContainer
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-
-    local tabGradient = Instance.new("UIGradient")
-    tabGradient.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(92, 22, 42)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(55, 12, 24))
-    })
-    tabGradient.Rotation = 0
-    tabGradient.Parent = btn
 
     local barIndicator = Instance.new("Frame")
     barIndicator.Size = UDim2.new(0, 3, 0, 16)
@@ -1113,7 +1105,7 @@ local function CreateTab(name, assetId, order)
             local isSel = (bName == name)
             TweenService:Create(bData.Btn, TweenInfo.new(0.14), {
                 BackgroundTransparency = isSel and 0 or 1,
-                BackgroundColor3 = isSel and Color3.fromRGB(82, 20, 38) or Color3.fromRGB(72, 17, 32)
+                BackgroundColor3 = isSel and Color3.fromRGB(61, 25, 35) or Color3.fromRGB(48, 23, 31)
             }):Play()
             TweenService:Create(bData.Label, TweenInfo.new(0.14), {TextColor3 = isSel and Clr.TextMain or Clr.TextDim}):Play()
             TweenService:Create(bData.Icon, TweenInfo.new(0.14), {ImageColor3 = isSel and Clr.RedGlow or Clr.TextDim}):Play()
@@ -1135,6 +1127,7 @@ local function MakeCard(parent, title, desc, order)
     local str = Instance.new("UIStroke")
     str.Color = Clr.CardBorder
     str.Thickness = 1
+    str.Transparency = 0.38
     str.Parent = f
     local tl = Instance.new("TextLabel")
     tl.Size = UDim2.new(0.68, 0, 0, 15)
@@ -1192,7 +1185,7 @@ end
 local function MakeButton(parent, text, order, callback)
     local b = Instance.new("TextButton")
     b.Size = UDim2.new(1, 0, 0, 32)
-    b.BackgroundColor3 = Color3.fromRGB(52, 15, 24)
+    b.BackgroundColor3 = Color3.fromRGB(35, 25, 29)
     b.BorderSizePixel = 0
     b.Text = text
     b.TextColor3 = Clr.TextMain
@@ -1204,11 +1197,12 @@ local function MakeButton(parent, text, order, callback)
     local s = Instance.new("UIStroke")
     s.Color = Clr.CardBorder
     s.Thickness = 1
+    s.Transparency = 0.4
     s.Parent = b
     b.MouseButton1Click:Connect(function()
         TweenService:Create(b, TweenInfo.new(0.08), {BackgroundColor3 = Clr.RedDark}):Play()
         task.delay(0.1, function()
-            TweenService:Create(b, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(52, 15, 24)}):Play()
+            TweenService:Create(b, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(35, 25, 29)}):Play()
         end)
         callback()
     end)
@@ -1226,6 +1220,7 @@ local function MakeSlider(parent, title, minVal, maxVal, curVal, order, callback
     local str = Instance.new("UIStroke")
     str.Color = Clr.CardBorder
     str.Thickness = 1
+    str.Transparency = 0.38
     str.Parent = f
     local tl = Instance.new("TextLabel")
     tl.Size = UDim2.new(0.65, 0, 0, 14)
@@ -1240,7 +1235,7 @@ local function MakeSlider(parent, title, minVal, maxVal, curVal, order, callback
     local valBadge = Instance.new("TextLabel")
     valBadge.Size = UDim2.fromOffset(45, 14)
     valBadge.Position = UDim2.new(1, -55, 0, 6)
-    valBadge.BackgroundColor3 = Color3.fromRGB(54, 17, 27)
+    valBadge.BackgroundColor3 = Color3.fromRGB(43, 24, 31)
     valBadge.Text = tostring(curVal)
     valBadge.TextColor3 = Clr.RedGlow
     valBadge.Font = Enum.Font.GothamBold
@@ -1251,7 +1246,7 @@ local function MakeSlider(parent, title, minVal, maxVal, curVal, order, callback
     local bar = Instance.new("Frame")
     bar.Size = UDim2.new(1, -20, 0, 4)
     bar.Position = UDim2.fromOffset(10, 28)
-    bar.BackgroundColor3 = Color3.fromRGB(48, 20, 26)
+    bar.BackgroundColor3 = Color3.fromRGB(45, 36, 40)
     bar.BorderSizePixel = 0
     bar.Parent = f
     Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
@@ -1293,7 +1288,7 @@ end
 local ModalOverlay = Instance.new("Frame")
 ModalOverlay.Name = "EggFilterModalOverlay"
 ModalOverlay.Size = UDim2.new(1, 0, 1, 0)
-ModalOverlay.BackgroundColor3 = Color3.fromRGB(10, 5, 8)
+ModalOverlay.BackgroundColor3 = Color3.fromRGB(8, 8, 10)
 ModalOverlay.BackgroundTransparency = 0.4
 ModalOverlay.Visible = false
 ModalOverlay.ZIndex = 50
@@ -1311,7 +1306,7 @@ local ModalBox = Instance.new("Frame")
 ModalBox.Size = UDim2.fromOffset(250, 230)
 ModalBox.AnchorPoint = Vector2.new(0.5, 0.5)
 ModalBox.Position = UDim2.new(0.5, 0, 0.5, 0)
-ModalBox.BackgroundColor3 = Color3.fromRGB(24, 12, 16)
+ModalBox.BackgroundColor3 = Clr.Card
 ModalBox.BorderSizePixel = 0
 ModalBox.ZIndex = 51
 ModalBox.Parent = ModalOverlay
@@ -1320,6 +1315,7 @@ Instance.new("UICorner", ModalBox).CornerRadius = UDim.new(0, 8)
 local modalStroke = Instance.new("UIStroke")
 modalStroke.Color = Clr.RedAccent
 modalStroke.Thickness = 1.2
+modalStroke.Transparency = 0.25
 modalStroke.Parent = ModalBox
 
 local ModalTitle = Instance.new("TextLabel")
@@ -1337,7 +1333,7 @@ ModalTitle.Parent = ModalBox
 local ModalCloseBtn = Instance.new("TextButton")
 ModalCloseBtn.Size = UDim2.fromOffset(18, 18)
 ModalCloseBtn.Position = UDim2.new(1, -30, 0, 4)
-
+ModalCloseBtn.BackgroundColor3 = Color3.fromRGB(43, 24, 31)
 ModalCloseBtn.Text = "X"
 ModalCloseBtn.TextColor3 = Color3.new(1, 1, 1)
 ModalCloseBtn.Font = Enum.Font.GothamBold
@@ -1370,7 +1366,7 @@ Instance.new("UICorner", BtnResetOff).CornerRadius = UDim.new(0, 4)
 local BtnAllGodly = Instance.new("TextButton")
 BtnAllGodly.Size = UDim2.new(0.48, 0, 1, 0)
 BtnAllGodly.Position = UDim2.new(0.52, 0, 0, 0)
-BtnAllGodly.BackgroundColor3 = Color3.fromRGB(92, 20, 38)
+BtnAllGodly.BackgroundColor3 = Color3.fromRGB(61, 25, 35)
 BtnAllGodly.Text = "+ All Godly"
 BtnAllGodly.TextColor3 = Clr.RedGlow
 BtnAllGodly.Font = Enum.Font.GothamMedium
@@ -1426,7 +1422,7 @@ end
 for idx, item in ipairs(AllEggList) do
     local row = Instance.new("TextButton")
     row.Size = UDim2.new(1, 0, 0, 24)
-    row.BackgroundColor3 = Color3.fromRGB(44, 14, 22)
+    row.BackgroundColor3 = Color3.fromRGB(31, 23, 27)
     row.BorderSizePixel = 0
     row.Text = ""
     row.LayoutOrder = idx
@@ -1522,14 +1518,14 @@ local pSystem    = CreateTab("System",     6031280882, 6)
 
 Pages["Harvest"].Visible = true
 TabButtons["Harvest"].Btn.BackgroundTransparency = 0
-TabButtons["Harvest"].Btn.BackgroundColor3 = Color3.fromRGB(82, 20, 38)
+TabButtons["Harvest"].Btn.BackgroundColor3 = Color3.fromRGB(61, 25, 35)
 TabButtons["Harvest"].Label.TextColor3 = Clr.TextMain
 TabButtons["Harvest"].Icon.ImageColor3 = Clr.RedGlow
 TabButtons["Harvest"].Bar.Visible = true
 
 local MonitorCard = Instance.new("Frame")
 MonitorCard.Size = UDim2.new(1, 0, 0, 68)
-MonitorCard.BackgroundColor3 = Color3.fromRGB(42, 13, 21)
+MonitorCard.BackgroundColor3 = Clr.Card
 MonitorCard.BorderSizePixel = 0
 MonitorCard.LayoutOrder = 1
 MonitorCard.Parent = pHarvest
@@ -1537,6 +1533,7 @@ Instance.new("UICorner", MonitorCard).CornerRadius = UDim.new(0, 8)
 local mStroke = Instance.new("UIStroke")
 mStroke.Color = Clr.CardBorder
 mStroke.Thickness = 1
+mStroke.Transparency = 0.38
 mStroke.Parent = MonitorCard
 
 local MTitle = Instance.new("TextLabel")
@@ -1773,7 +1770,7 @@ local eggCard = MakeCard(pHarvest, "Target Egg Filter", "Select which eggs to co
 BtnEggTrigger = Instance.new("TextButton")
 BtnEggTrigger.Size = UDim2.fromOffset(88, 22)
 BtnEggTrigger.Position = UDim2.new(1, -96, 0.5, -11)
-BtnEggTrigger.BackgroundColor3 = Color3.fromRGB(54, 17, 27)
+BtnEggTrigger.BackgroundColor3 = Color3.fromRGB(43, 24, 31)
 BtnEggTrigger.BorderSizePixel = 0
 BtnEggTrigger.Text = "None Selected"
 BtnEggTrigger.TextColor3 = Clr.TextDim
@@ -1784,6 +1781,7 @@ Instance.new("UICorner", BtnEggTrigger).CornerRadius = UDim.new(0, 5)
 local rStroke = Instance.new("UIStroke")
 rStroke.Color = Clr.CardBorder
 rStroke.Thickness = 1
+rStroke.Transparency = 0.4
 rStroke.Parent = BtnEggTrigger
 BtnEggTrigger.MouseButton1Click:Connect(function() ModalOverlay.Visible = true end)
 
@@ -1989,7 +1987,7 @@ end)
 
 local ProfileCard = Instance.new("Frame")
 ProfileCard.Size = UDim2.new(1, 0, 0, 64)
-ProfileCard.BackgroundColor3 = Color3.fromRGB(42, 13, 21)
+ProfileCard.BackgroundColor3 = Clr.Card
 ProfileCard.BorderSizePixel = 0
 ProfileCard.LayoutOrder = 1
 ProfileCard.Parent = pSystem
@@ -1998,12 +1996,13 @@ Instance.new("UICorner", ProfileCard).CornerRadius = UDim.new(0, 8)
 local pStroke = Instance.new("UIStroke")
 pStroke.Color = Clr.CardBorder
 pStroke.Thickness = 1
+pStroke.Transparency = 0.38
 pStroke.Parent = ProfileCard
 
 local AvatarImg = Instance.new("ImageLabel")
 AvatarImg.Size = UDim2.fromOffset(46, 46)
 AvatarImg.Position = UDim2.fromOffset(9, 9)
-AvatarImg.BackgroundColor3 = Color3.fromRGB(36, 16, 22)
+AvatarImg.BackgroundColor3 = Color3.fromRGB(32, 24, 28)
 AvatarImg.Image = "rbxthumb://type=AvatarHeadShot&id=" .. LP.UserId .. "&w=150&h=150"
 AvatarImg.BorderSizePixel = 0
 AvatarImg.Parent = ProfileCard
@@ -2059,6 +2058,7 @@ Instance.new("UICorner", StatsCard).CornerRadius = UDim.new(0, 7)
 local sStroke = Instance.new("UIStroke")
 sStroke.Color = Clr.CardBorder
 sStroke.Thickness = 1
+sStroke.Transparency = 0.38
 sStroke.Parent = StatsCard
 
 local LiveStatsLbl = Instance.new("TextLabel")
