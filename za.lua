@@ -805,9 +805,7 @@ FloatBtn.Visible = false
 FloatBtn.Parent = SG
 Instance.new("UICorner", FloatBtn).CornerRadius = UDim.new(1, 0)
 local FloatStroke = Instance.new("UIStroke")
-FloatStroke.Color = Clr.RedAccent
-FloatStroke.Thickness = 1.5
-FloatStroke.Parent = FloatBtn
+FloatStroke.Transparency = 1
 
 local Main = Instance.new("Frame")
 Main.Name = "MainFrame"
