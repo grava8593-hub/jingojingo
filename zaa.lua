@@ -350,6 +350,63 @@ local function GlideToBaseSafe(basePos)
     task.wait(0.05)
 end
 
+local function TweenRootTo(targetCFrame, speed)
+    local root = GetRoot()
+    local hum = GetHum()
+    if not root then return false end
+
+    local distance = (root.Position - targetCFrame.Position).Magnitude
+    local duration = math.clamp(distance / math.max(speed or State.ReturnSpeed, 50), 0.1, 12)
+
+    if hum then hum.PlatformStand = true end
+    root.Anchored = true
+    local tween = TweenService:Create(root, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
+    tween:Play()
+    tween.Completed:Wait()
+    root.Anchored = false
+    if hum then hum.PlatformStand = false end
+    root.AssemblyLinearVelocity = Vector3.zero
+    return true
+end
+
+local function EnterVolcano()
+    local root = GetRoot()
+    local volcano = Workspace:FindFirstChild("Volcano")
+    local entrance = volcano and volcano:FindFirstChild("VolcanoEntrance")
+    local validate = volcano and volcano:FindFirstChild("VolcanoValidate")
+    if not root or not entrance or not validate or not entrance:IsA("BasePart") or not validate:IsA("BasePart") then
+        return false
+    end
+
+    if (root.Position - validate.Position).Magnitude <= 18 then
+        return true
+    end
+
+    State.Status = "Entering Volcano..."
+    UpdateMonitorUI()
+    if not TweenRootTo(entrance.CFrame + Vector3.new(0, 2.5, 0), State.ReturnSpeed) then
+        return false
+    end
+
+    if firetouchinterest then
+        pcall(function()
+            firetouchinterest(root, entrance, 0)
+            task.wait(0.15)
+            firetouchinterest(root, entrance, 1)
+        end)
+    end
+
+    local started = os.clock()
+    while os.clock() - started < 4 do
+        root = GetRoot()
+        if root and (root.Position - validate.Position).Magnitude <= 18 then
+            return true
+        end
+        task.wait(0.1)
+    end
+    return false
+end
+
 local function FindEggsInMap()
     local list = {}
     local root = GetRoot()
@@ -424,12 +481,9 @@ local function FindEggsInMap()
     return list
 end
 
-local function PerformEggPickup(egg)
+local function CollectEggAtCurrentPosition(egg, timeout, allowObjectGone)
     local root = GetRoot()
-    if not root then return false end
-
-    SnapToTarget(egg.Part.Position)
-    task.wait(0.4)
+    if not root or not egg or not egg.Part then return false end
 
     for _, prompt in ipairs(egg.Object:GetDescendants()) do
         if prompt:IsA("ProximityPrompt") then
@@ -457,7 +511,7 @@ local function PerformEggPickup(egg)
     ClickOrActivateEgg()
 
     local startWait = os.clock()
-    while os.clock() - startWait < 1.0 do
+    while os.clock() - startWait < timeout do
         if IsCarryingEgg() or not egg.Object:IsDescendantOf(Workspace) or (egg.Part and egg.Part.Transparency >= 0.9) then
             ClickOrActivateEgg()
             return true
@@ -465,7 +519,14 @@ local function PerformEggPickup(egg)
         task.wait(0.1)
     end
 
-    return IsCarryingEgg()
+    return IsCarryingEgg() or (allowObjectGone and not egg.Object:IsDescendantOf(Workspace))
+end
+
+local function PerformEggPickup(egg)
+    if not egg or not egg.Part then return false end
+    SnapToTarget(egg.Part.Position)
+    task.wait(0.4)
+    return CollectEggAtCurrentPosition(egg, 1.0)
 end
 
 local function PerformInstantPickup(egg)
@@ -476,42 +537,23 @@ local function PerformInstantPickup(egg)
     root.AssemblyLinearVelocity = Vector3.zero
     task.wait(0.04)
 
-    local uuid = egg.UUID or GetEggUUID(egg.Object)
+    return CollectEggAtCurrentPosition(egg, 0.6, true)
+end
 
-    if EggPickupRemote then
-        if uuid then
-            SafeFire(EggPickupRemote, uuid)
-        else
-            SafeFire(EggPickupRemote, egg.Object)
-            SafeFire(EggPickupRemote, egg.Part)
-        end
+local function PerformVolcanicPickup(egg, instant)
+    if not EnterVolcano() then return false end
+
+    if instant then
+        return PerformInstantPickup(egg)
     end
 
-    for _, prompt in ipairs(egg.Object:GetDescendants()) do
-        if prompt:IsA("ProximityPrompt") then
-            TriggerPromptInstant(prompt)
-        end
+    State.Status = "Tweening to Volcanic Egg..."
+    UpdateMonitorUI()
+    if not TweenRootTo(CFrame.new(egg.Part.Position + Vector3.new(0, 2.5, 0)), State.ReturnSpeed) then
+        return false
     end
-
-    if firetouchinterest and root and egg.Part then
-        pcall(function()
-            firetouchinterest(root, egg.Part, 0)
-            task.wait()
-            firetouchinterest(root, egg.Part, 1)
-        end)
-    end
-
-    ClickOrActivateEgg()
-
-    local startWait = os.clock()
-    while os.clock() - startWait < 0.6 do
-        if IsCarryingEgg() or not egg.Object:IsDescendantOf(Workspace) or (egg.Part and egg.Part.Transparency >= 0.9) then
-            return true
-        end
-        task.wait(0.05)
-    end
-
-    return IsCarryingEgg() or not egg.Object:IsDescendantOf(Workspace)
+    task.wait(0.15)
+    return CollectEggAtCurrentPosition(egg, 1.0)
 end
 
 local function PerformFullDelivery()
@@ -1638,7 +1680,9 @@ MakeToggle(pHarvest, "Auto Farm", "Collect selected eggs & deliver to base", fal
                             State.Status = "Taking Egg..."
                             UpdateMonitorUI()
 
-                            local success = PerformEggPickup(egg)
+                            local success = egg.Name == "Volcanic Egg"
+                                and PerformVolcanicPickup(egg, false)
+                                or PerformEggPickup(egg)
 
                             if success or IsCarryingEgg() then
                                 State.Status = "Delivering to Base..."
@@ -1726,7 +1770,9 @@ MakeToggle(pHarvest, "Instant Farm", "Instantly teleport to eggs and collect the
                             State.TargetRarity = egg.Tier
                             UpdateMonitorUI()
 
-                            local success = PerformInstantPickup(egg)
+                            local success = egg.Name == "Volcanic Egg"
+                                and PerformVolcanicPickup(egg, true)
+                                or PerformInstantPickup(egg)
 
                             if success or IsCarryingEgg() then
                                 State.Status = "Instant Claiming..."
