@@ -27,11 +27,14 @@ pcall(function()
 end)
 
 local iconPath = "ErdevaHubIcon.png"
-if not isfile(iconPath) then
-    pcall(function()
-        writefile(iconPath, game:HttpGet("https://raw.githubusercontent.com/grava8593-hub/icon/blob/main/erdeva.png"))
-    end)
-end
+
+pcall(function()
+    if isfile(iconPath) then
+        delfile(iconPath)
+    end
+    writefile(iconPath, game:HttpGet("https://raw.githubusercontent.com/grava8593-hub/icon/main/erdeva.png"))
+end)
+
 local hubCustomIcon = isfile(iconPath) and getcustomasset(iconPath) or "rbxassetid://6031075931"
 
 local discordIconPath = "ErdevaDiscordIcon.png"
