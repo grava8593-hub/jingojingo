@@ -110,6 +110,12 @@ local AllEggList = {
     {name = "White Egg", tier = "Common"}
 }
 
+local EggRank = {}
+local totalEggCount = #AllEggList
+for index, item in ipairs(AllEggList) do
+    EggRank[item.name] = totalEggCount - index + 1
+end
+
 local TierPriority = {
     ["Godly"]     = 6,
     ["Legendary"] = 5,
@@ -318,10 +324,49 @@ local function GetEggUUID(eggObj)
     return nil
 end
 
-local function SnapToTarget(targetPos)
+local function SafeTP(targetCFrame)
+    local char = LP.Character
     local root = GetRoot()
+    if not root or not char then return end
+
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = false
+        end
+    end
+
+    root.AssemblyLinearVelocity = Vector3.zero
+    root.AssemblyAngularVelocity = Vector3.zero
+    root.CFrame = targetCFrame
+    task.wait(0.04)
+    root.AssemblyLinearVelocity = Vector3.zero
+end
+
+local function GlideToPosition(targetPos, customSpeed)
+    local root = GetRoot()
+    local hum = GetHum()
     if not root then return end
-    root.CFrame = CFrame.new(targetPos + Vector3.new(0, 2.5, 0))
+
+    local startPos = root.Position
+    local endPos = targetPos + Vector3.new(0, 2.5, 0)
+    local dist = (startPos - endPos).Magnitude
+
+    local speed = customSpeed or State.FlySpeed or 85
+    local totalTime = math.clamp(dist / speed, 0.1, 15.0)
+
+    if hum then hum.PlatformStand = true end
+    root.Anchored = true
+
+    local startTime = os.clock()
+    while os.clock() - startTime < totalTime and (State.MasterFarm or State.Flying) and State.Running do
+        local alpha = math.clamp((os.clock() - startTime) / totalTime, 0, 1)
+        root.CFrame = CFrame.new(startPos:Lerp(endPos, alpha))
+        task.wait(0.02)
+    end
+
+    root.CFrame = CFrame.new(endPos)
+    root.Anchored = false
+    if hum then hum.PlatformStand = false end
     root.AssemblyLinearVelocity = Vector3.zero
     task.wait(0.05)
 end
@@ -342,7 +387,7 @@ local function GlideToBaseSafe(basePos)
     root.Anchored = true
 
     local startTime = os.clock()
-    while os.clock() - startTime < totalTime do
+    while os.clock() - startTime < totalTime and State.Running do
         local alpha = math.clamp((os.clock() - startTime) / totalTime, 0, 1)
         root.CFrame = CFrame.new(startPos:Lerp(targetPos, alpha))
         task.wait(0.02)
@@ -416,12 +461,14 @@ local function FindEggsInMap()
                             if distToBase > 120 then
                                 local dist = (myPos - p.Position).Magnitude
                                 local tierVal = TierPriority[eggTier] or 1
+                                local rankVal = EggRank[eggName] or 1
                                 table.insert(list, {
                                     Object    = obj,
                                     Part      = p,
                                     Name      = eggName,
                                     Tier      = eggTier,
                                     Priority  = tierVal,
+                                    Rank      = rankVal,
                                     Distance  = dist,
                                     UUID      = GetEggUUID(obj)
                                 })
@@ -434,27 +481,35 @@ local function FindEggsInMap()
     end
 
     table.sort(list, function(a, b)
-        if a.Priority ~= b.Priority then return a.Priority > b.Priority end
-        return a.Distance < b.Distance
+        if State.InstantFarm then
+            if a.Rank ~= b.Rank then
+                return a.Rank > b.Rank
+            end
+            return a.Distance < b.Distance
+        else
+            if a.Priority ~= b.Priority then 
+                return a.Priority > b.Priority 
+            end
+            return a.Distance < b.Distance
+        end
     end)
 
     return list
 end
 
-local LairDoorPosition = Vector3.new(-4964.66, 41290.65, -3663.98)
+local LairEntrancePos = Vector3.new(-4983.16, 41274.68, -3625.43)
 
 local function PerformEggPickup(egg)
     local root = GetRoot()
     if not root then return false end
 
     if string.find(string.lower(egg.Name), "volcan") then
-        root.CFrame = CFrame.new(LairDoorPosition)
-        root.AssemblyLinearVelocity = Vector3.zero
-        task.wait(0.3)
+        GlideToPosition(LairEntrancePos, State.FlySpeed or 85)
+        task.wait(0.25)
     end
 
-    SnapToTarget(egg.Part.Position)
-    task.wait(0.4)
+    GlideToPosition(egg.Part.Position, State.FlySpeed or 85)
+    task.wait(0.15)
 
     for _, prompt in ipairs(egg.Object:GetDescendants()) do
         if prompt:IsA("ProximityPrompt") then
@@ -498,13 +553,11 @@ local function PerformInstantPickup(egg)
     if not root or not egg or not egg.Part then return false end
 
     if string.find(string.lower(egg.Name), "volcan") then
-        root.CFrame = CFrame.new(LairDoorPosition)
-        root.AssemblyLinearVelocity = Vector3.zero
-        task.wait(0.3)
+        SafeTP(CFrame.new(LairEntrancePos + Vector3.new(0, 2.5, 0)))
+        task.wait(0.25)
     end
 
-    root.CFrame = CFrame.new(egg.Part.Position + Vector3.new(0, 2.5, 0))
-    root.AssemblyLinearVelocity = Vector3.zero
+    SafeTP(CFrame.new(egg.Part.Position + Vector3.new(0, 3.5, 0)))
     task.wait(0.04)
 
     local uuid = egg.UUID or GetEggUUID(egg.Object)
@@ -619,8 +672,7 @@ local function PerformInstantDelivery()
     local baseCFrame = State.BaseCFrame or FindMyPlot()
     local basePos = baseCFrame and baseCFrame.Position or root.Position
 
-    root.CFrame = CFrame.new(basePos + Vector3.new(0, 2.5, 0))
-    root.AssemblyLinearVelocity = Vector3.zero
+    SafeTP(CFrame.new(basePos + Vector3.new(0, 2.5, 0)))
 
     State.Status = "Storing & Claiming..."
     UpdateMonitorUI()
@@ -1820,7 +1872,7 @@ MakeToggle(pSanctuary, "Auto Deploy All Eggs", "Automatically plants eggs", fals
                         local basePos = baseCFrame and baseCFrame.Position or root.Position
                         
                         if (root.Position - basePos).Magnitude > 100 then
-                            root.CFrame = CFrame.new(basePos + Vector3.new(0, 2.5, 0))
+                            SafeTP(CFrame.new(basePos + Vector3.new(0, 2.5, 0)))
                             task.wait(0.15)
                         end
 
@@ -1960,7 +2012,7 @@ MakeButton(pTeleport, "Teleport to My Plot", 1, function()
     local targetPos = State.BaseCFrame or FindMyPlot()
     local root = GetRoot()
     if root and targetPos then
-        root.CFrame = targetPos + Vector3.new(0, 3, 0)
+        SafeTP(targetPos + Vector3.new(0, 3, 0))
     end
 end)
 
