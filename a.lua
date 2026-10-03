@@ -729,16 +729,16 @@ heartbeatConn = RunService.Heartbeat:Connect(function()
 end)
 
 local Clr = {
-    MainBg     = Color3.fromRGB(17, 19, 25),
-    Sidebar    = Color3.fromRGB(23, 26, 34),
-    Card       = Color3.fromRGB(30, 34, 44),
-    CardBorder = Color3.fromRGB(54, 61, 78),
-    RedAccent  = Color3.fromRGB(239, 74, 91),
-    RedDark    = Color3.fromRGB(162, 45, 59),
-    RedGlow    = Color3.fromRGB(255, 126, 140),
-    TextMain   = Color3.fromRGB(245, 247, 252),
-    TextDim    = Color3.fromRGB(157, 166, 185),
-    ToggleOff  = Color3.fromRGB(55, 61, 76),
+    MainBg     = Color3.fromRGB(16, 7, 10),
+    Sidebar    = Color3.fromRGB(27, 9, 14),
+    Card       = Color3.fromRGB(36, 13, 19),
+    CardBorder = Color3.fromRGB(99, 28, 41),
+    RedAccent  = Color3.fromRGB(220, 20, 60),
+    RedDark    = Color3.fromRGB(130, 12, 35),
+    RedGlow    = Color3.fromRGB(255, 86, 116),
+    TextMain   = Color3.fromRGB(255, 242, 245),
+    TextDim    = Color3.fromRGB(201, 151, 162),
+    ToggleOff  = Color3.fromRGB(64, 21, 30),
     Discord    = Color3.fromRGB(88, 101, 242),
     DiscordDark= Color3.fromRGB(60, 70, 180)
 }
@@ -767,7 +767,7 @@ FloatStroke.Parent = FloatBtn
 local Main = Instance.new("Frame")
 Main.Name = "MainFrame"
 Main.AnchorPoint = Vector2.new(0.5, 0.5)
-Main.Size = UDim2.fromOffset(560, 350)
+Main.Size = UDim2.fromOffset(540, 340)
 Main.Position = UDim2.new(0.5, 0, 0.5, 0)
 Main.BackgroundColor3 = Clr.MainBg
 Main.BorderSizePixel = 0
@@ -783,15 +783,15 @@ MainStroke.Parent = Main
 
 local MainGradient = Instance.new("UIGradient")
 MainGradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(21, 24, 32)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 17, 23))
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(29, 8, 14)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(14, 5, 8))
 })
 MainGradient.Rotation = 90
 MainGradient.Parent = Main
 
 local SizeConstraint = Instance.new("UISizeConstraint")
-SizeConstraint.MinSize = Vector2.new(460, 300)
-SizeConstraint.MaxSize = Vector2.new(680, 440)
+SizeConstraint.MinSize = Vector2.new(480, 300)
+SizeConstraint.MaxSize = Vector2.new(620, 400)
 SizeConstraint.Parent = Main
 
 FloatBtn.MouseButton1Click:Connect(function()
@@ -820,70 +820,82 @@ UIS.InputChanged:Connect(function(i)
 end)
 
 local Sidebar = Instance.new("Frame")
-Sidebar.Size = UDim2.new(0, 162, 1, 0)
+Sidebar.Size = UDim2.new(1, 0, 0, 86)
 Sidebar.BackgroundColor3 = Clr.Sidebar
 Sidebar.BorderSizePixel = 0
 Sidebar.Parent = Main
 Instance.new("UICorner", Sidebar).CornerRadius = UDim.new(0, 12)
 
+local SidebarGradient = Instance.new("UIGradient")
+SidebarGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(42, 11, 20)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(24, 7, 13))
+})
+SidebarGradient.Rotation = 0
+SidebarGradient.Parent = Sidebar
+
 local SideBorderLine = Instance.new("Frame")
-SideBorderLine.Size = UDim2.new(0, 1, 1, 0)
-SideBorderLine.Position = UDim2.new(1, -1, 0, 0)
+SideBorderLine.Size = UDim2.new(1, -20, 0, 1)
+SideBorderLine.Position = UDim2.new(0, 10, 1, -1)
 SideBorderLine.BackgroundColor3 = Clr.CardBorder
 SideBorderLine.BorderSizePixel = 0
 SideBorderLine.Parent = Sidebar
 
 local Header = Instance.new("Frame")
-Header.Size = UDim2.new(1, 0, 0, 58)
+Header.Size = UDim2.new(1, 0, 0, 44)
 Header.BackgroundTransparency = 1
 Header.Parent = Sidebar
 
 local CustomLogo = Instance.new("ImageLabel")
-CustomLogo.Size = UDim2.fromOffset(30, 30)
-CustomLogo.Position = UDim2.fromOffset(14, 13)
+CustomLogo.Size = UDim2.fromOffset(28, 28)
+CustomLogo.Position = UDim2.fromOffset(14, 8)
 CustomLogo.BackgroundTransparency = 1
 CustomLogo.Image = hubCustomIcon
 CustomLogo.Parent = Header
 Instance.new("UICorner", CustomLogo).CornerRadius = UDim.new(0, 6)
 
 local GameTitle = Instance.new("TextLabel")
-GameTitle.Size = UDim2.new(1, -54, 0, 18)
-GameTitle.Position = UDim2.fromOffset(52, 12)
+GameTitle.Size = UDim2.new(0, 190, 0, 16)
+GameTitle.Position = UDim2.fromOffset(52, 8)
 GameTitle.BackgroundTransparency = 1
 GameTitle.Text = "ERDEVA HUB"
 GameTitle.TextColor3 = Clr.TextMain
 GameTitle.Font = Enum.Font.GothamBold
-GameTitle.TextSize = 13
+GameTitle.TextSize = 12.5
 GameTitle.TextXAlignment = Enum.TextXAlignment.Left
 GameTitle.Parent = Header
 
 local SubTitle = Instance.new("TextLabel")
-SubTitle.Size = UDim2.new(1, -54, 0, 14)
-SubTitle.Position = UDim2.fromOffset(52, 30)
+SubTitle.Size = UDim2.new(0, 190, 0, 14)
+SubTitle.Position = UDim2.fromOffset(52, 23)
 SubTitle.BackgroundTransparency = 1
 SubTitle.Text = "Ride A Pet"
 SubTitle.TextColor3 = Clr.RedGlow
 SubTitle.Font = Enum.Font.GothamMedium
-SubTitle.TextSize = 9.5
+SubTitle.TextSize = 8.5
 SubTitle.TextXAlignment = Enum.TextXAlignment.Left
 SubTitle.Parent = Header
 
 local TabContainer = Instance.new("ScrollingFrame")
-TabContainer.Size = UDim2.new(1, 0, 1, -100)
-TabContainer.Position = UDim2.fromOffset(0, 62)
+TabContainer.Size = UDim2.new(1, -22, 0, 34)
+TabContainer.Position = UDim2.fromOffset(11, 48)
 TabContainer.BackgroundTransparency = 1
 TabContainer.BorderSizePixel = 0
 TabContainer.ScrollBarThickness = 0
+TabContainer.AutomaticCanvasSize = Enum.AutomaticSize.X
+TabContainer.CanvasSize = UDim2.new()
 TabContainer.Parent = Sidebar
 
 local TabList = Instance.new("UIListLayout")
 TabList.SortOrder = Enum.SortOrder.LayoutOrder
-TabList.Padding = UDim.new(0, 3)
+TabList.FillDirection = Enum.FillDirection.Horizontal
+TabList.VerticalAlignment = Enum.VerticalAlignment.Center
+TabList.Padding = UDim.new(0, 6)
 TabList.Parent = TabContainer
 
 local DiscordCard = Instance.new("TextButton")
-DiscordCard.Size = UDim2.new(1, -16, 0, 34)
-DiscordCard.Position = UDim2.new(0, 8, 1, -42)
+DiscordCard.Size = UDim2.fromOffset(132, 26)
+DiscordCard.Position = UDim2.new(1, -142, 0, 9)
 DiscordCard.BackgroundColor3 = Color3.fromRGB(22, 25, 42)
 DiscordCard.BorderSizePixel = 0
 DiscordCard.AutoButtonColor = false
@@ -904,18 +916,18 @@ DiscordIcon.Image = discordCustomIcon
 DiscordIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
 DiscordIcon.ImageTransparency = 0
 DiscordIcon.ScaleType = Enum.ScaleType.Fit
-DiscordIcon.Size = UDim2.fromOffset(26, 26)
-DiscordIcon.Position = UDim2.new(0, 5, 0.5, -13)
+DiscordIcon.Size = UDim2.fromOffset(20, 20)
+DiscordIcon.Position = UDim2.new(0, 5, 0.5, -10)
 DiscordIcon.Parent = DiscordCard
 
 local DiscordTitle = Instance.new("TextLabel")
-DiscordTitle.Size = UDim2.new(1, -35, 1, 0)
-DiscordTitle.Position = UDim2.fromOffset(35, 0)
+DiscordTitle.Size = UDim2.new(1, -30, 1, 0)
+DiscordTitle.Position = UDim2.fromOffset(29, 0)
 DiscordTitle.BackgroundTransparency = 1
 DiscordTitle.Text = "discord.gg/fTv3aKA9Ed"
 DiscordTitle.TextColor3 = Color3.fromRGB(210, 220, 255)
 DiscordTitle.Font = Enum.Font.GothamMedium
-DiscordTitle.TextSize = 8.5
+DiscordTitle.TextSize = 8
 DiscordTitle.TextXAlignment = Enum.TextXAlignment.Left
 DiscordTitle.TextTruncate = Enum.TextTruncate.AtEnd
 DiscordTitle.ZIndex = 10
@@ -948,13 +960,13 @@ DiscordCard.MouseButton1Click:Connect(function()
 end)
 
 local ContentArea = Instance.new("Frame")
-ContentArea.Size = UDim2.new(1, -166, 1, 0)
-ContentArea.Position = UDim2.fromOffset(166, 0)
+ContentArea.Size = UDim2.new(1, 0, 1, -88)
+ContentArea.Position = UDim2.fromOffset(0, 88)
 ContentArea.BackgroundTransparency = 1
 ContentArea.Parent = Main
 
 local Topbar = Instance.new("Frame")
-Topbar.Size = UDim2.new(1, 0, 0, 42)
+Topbar.Size = UDim2.new(1, 0, 0, 30)
 Topbar.BackgroundTransparency = 1
 Topbar.Parent = ContentArea
 
@@ -975,7 +987,7 @@ end
 
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.fromOffset(20, 20)
-CloseBtn.Position = UDim2.new(1, -26, 0.5, -10)
+CloseBtn.Position = UDim2.new(1, -30, 0.5, -10)
 CloseBtn.BackgroundColor3 = Color3.fromRGB(42, 12, 16)
 CloseBtn.Text = "x"
 CloseBtn.TextColor3 = Clr.RedGlow
@@ -988,8 +1000,8 @@ CloseBtn.MouseButton1Click:Connect(DestroyAll)
 
 local MinMainBtn = Instance.new("TextButton")
 MinMainBtn.Size = UDim2.fromOffset(20, 20)
-MinMainBtn.Position = UDim2.new(1, -50, 0.5, -10)
-MinMainBtn.BackgroundColor3 = Color3.fromRGB(36, 16, 20)
+MinMainBtn.Position = UDim2.new(1, -56, 0.5, -10)
+MinMainBtn.BackgroundColor3 = Clr.Card
 MinMainBtn.Text = "-"
 MinMainBtn.TextColor3 = Clr.TextDim
 MinMainBtn.Font = Enum.Font.GothamBold
@@ -1025,8 +1037,8 @@ local TabButtons = {}
 
 local function CreateTab(name, assetId, order)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, -16, 0, 32)
-    btn.Position = UDim2.fromOffset(8, 0)
+    btn.Size = UDim2.fromOffset(79, 26)
+    btn.Position = UDim2.new()
     btn.BackgroundColor3 = Clr.Card
     btn.BackgroundTransparency = 1
     btn.Text = ""
@@ -1036,8 +1048,8 @@ local function CreateTab(name, assetId, order)
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 
     local barIndicator = Instance.new("Frame")
-    barIndicator.Size = UDim2.new(0, 3, 0, 18)
-    barIndicator.Position = UDim2.new(0, 3, 0.5, -9)
+    barIndicator.Size = UDim2.new(0.52, 0, 0, 2)
+    barIndicator.Position = UDim2.new(0.24, 0, 1, -3)
     barIndicator.BackgroundColor3 = Clr.RedAccent
     barIndicator.BorderSizePixel = 0
     barIndicator.Visible = false
@@ -1045,27 +1057,27 @@ local function CreateTab(name, assetId, order)
     Instance.new("UICorner", barIndicator).CornerRadius = UDim.new(1, 0)
 
     local icon = Instance.new("ImageLabel")
-    icon.Size = UDim2.fromOffset(15, 15)
-    icon.Position = UDim2.fromOffset(12, 8.5)
+    icon.Size = UDim2.fromOffset(13, 13)
+    icon.Position = UDim2.fromOffset(8, 6.5)
     icon.BackgroundTransparency = 1
     icon.Image = "rbxassetid://" .. tostring(assetId)
     icon.ImageColor3 = Clr.TextDim
     icon.Parent = btn
 
     local titleLbl = Instance.new("TextLabel")
-    titleLbl.Size = UDim2.new(1, -34, 1, 0)
-    titleLbl.Position = UDim2.fromOffset(36, 0)
+    titleLbl.Size = UDim2.new(1, -27, 1, 0)
+    titleLbl.Position = UDim2.fromOffset(25, 0)
     titleLbl.BackgroundTransparency = 1
     titleLbl.Text = name
     titleLbl.TextColor3 = Clr.TextDim
     titleLbl.Font = Enum.Font.GothamMedium
-    titleLbl.TextSize = 10.5
+    titleLbl.TextSize = 8.5
     titleLbl.TextXAlignment = Enum.TextXAlignment.Left
     titleLbl.Parent = btn
 
     local page = Instance.new("ScrollingFrame")
-    page.Size = UDim2.new(1, -20, 1, -52)
-    page.Position = UDim2.fromOffset(8, 44)
+    page.Size = UDim2.new(1, -20, 1, -42)
+    page.Position = UDim2.fromOffset(10, 34)
     page.BackgroundTransparency = 1
     page.BorderSizePixel = 0
     page.ScrollBarThickness = 2.5
@@ -1091,7 +1103,7 @@ local function CreateTab(name, assetId, order)
             local isSel = (bName == name)
             TweenService:Create(bData.Btn, TweenInfo.new(0.14), {
                 BackgroundTransparency = isSel and 0 or 1,
-                BackgroundColor3 = isSel and Color3.fromRGB(55, 39, 48) or Clr.Card
+                BackgroundColor3 = isSel and Color3.fromRGB(82, 20, 38) or Clr.Card
             }):Play()
             TweenService:Create(bData.Label, TweenInfo.new(0.14), {TextColor3 = isSel and Clr.TextMain or Clr.TextDim}):Play()
             TweenService:Create(bData.Icon, TweenInfo.new(0.14), {ImageColor3 = isSel and Clr.RedGlow or Clr.TextDim}):Play()
@@ -1104,19 +1116,19 @@ end
 
 local function MakeCard(parent, title, desc, order)
     local f = Instance.new("Frame")
-    f.Size = UDim2.new(1, 0, 0, desc and 48 or 38)
+    f.Size = UDim2.new(1, 0, 0, desc and 42 or 34)
     f.BackgroundColor3 = Clr.Card
     f.BorderSizePixel = 0
     f.LayoutOrder = order or 0
     f.Parent = parent
-    Instance.new("UICorner", f).CornerRadius = UDim.new(0, 8)
+    Instance.new("UICorner", f).CornerRadius = UDim.new(0, 7)
     local str = Instance.new("UIStroke")
     str.Color = Clr.CardBorder
     str.Thickness = 1
     str.Parent = f
     local tl = Instance.new("TextLabel")
     tl.Size = UDim2.new(0.68, 0, 0, 15)
-    tl.Position = UDim2.fromOffset(12, desc and 8 or 11)
+    tl.Position = UDim2.fromOffset(10, desc and 6 or 9)
     tl.BackgroundTransparency = 1
     tl.Text = title
     tl.TextColor3 = Clr.TextMain
@@ -1127,7 +1139,7 @@ local function MakeCard(parent, title, desc, order)
     if desc then
         local dl = Instance.new("TextLabel")
         dl.Size = UDim2.new(0.68, 0, 0, 13)
-        dl.Position = UDim2.fromOffset(12, 26)
+        dl.Position = UDim2.fromOffset(10, 22)
         dl.BackgroundTransparency = 1
         dl.Text = desc
         dl.TextColor3 = Clr.TextDim
@@ -1169,8 +1181,8 @@ end
 
 local function MakeButton(parent, text, order, callback)
     local b = Instance.new("TextButton")
-    b.Size = UDim2.new(1, 0, 0, 36)
-    b.BackgroundColor3 = Color3.fromRGB(42, 46, 59)
+    b.Size = UDim2.new(1, 0, 0, 32)
+    b.BackgroundColor3 = Color3.fromRGB(52, 15, 24)
     b.BorderSizePixel = 0
     b.Text = text
     b.TextColor3 = Clr.TextMain
@@ -1178,7 +1190,7 @@ local function MakeButton(parent, text, order, callback)
     b.TextSize = 10
     b.LayoutOrder = order or 0
     b.Parent = parent
-    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
+    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 7)
     local s = Instance.new("UIStroke")
     s.Color = Clr.CardBorder
     s.Thickness = 1
@@ -1186,7 +1198,7 @@ local function MakeButton(parent, text, order, callback)
     b.MouseButton1Click:Connect(function()
         TweenService:Create(b, TweenInfo.new(0.08), {BackgroundColor3 = Clr.RedDark}):Play()
         task.delay(0.1, function()
-            TweenService:Create(b, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(42, 46, 59)}):Play()
+            TweenService:Create(b, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(52, 15, 24)}):Play()
         end)
         callback()
     end)
@@ -1218,7 +1230,7 @@ local function MakeSlider(parent, title, minVal, maxVal, curVal, order, callback
     local valBadge = Instance.new("TextLabel")
     valBadge.Size = UDim2.fromOffset(45, 14)
     valBadge.Position = UDim2.new(1, -55, 0, 6)
-    valBadge.BackgroundColor3 = Color3.fromRGB(42, 16, 22)
+    valBadge.BackgroundColor3 = Color3.fromRGB(54, 17, 27)
     valBadge.Text = tostring(curVal)
     valBadge.TextColor3 = Clr.RedGlow
     valBadge.Font = Enum.Font.GothamBold
@@ -1335,7 +1347,7 @@ QuickRow.Parent = ModalBox
 
 local BtnResetOff = Instance.new("TextButton")
 BtnResetOff.Size = UDim2.new(0.48, 0, 1, 0)
-BtnResetOff.BackgroundColor3 = Color3.fromRGB(36, 16, 20)
+BtnResetOff.BackgroundColor3 = Clr.Card
 BtnResetOff.Text = "Reset All OFF"
 BtnResetOff.TextColor3 = Clr.TextDim
 BtnResetOff.Font = Enum.Font.GothamMedium
@@ -1348,7 +1360,7 @@ Instance.new("UICorner", BtnResetOff).CornerRadius = UDim.new(0, 4)
 local BtnAllGodly = Instance.new("TextButton")
 BtnAllGodly.Size = UDim2.new(0.48, 0, 1, 0)
 BtnAllGodly.Position = UDim2.new(0.52, 0, 0, 0)
-BtnAllGodly.BackgroundColor3 = Color3.fromRGB(56, 18, 26)
+BtnAllGodly.BackgroundColor3 = Color3.fromRGB(92, 20, 38)
 BtnAllGodly.Text = "+ All Godly"
 BtnAllGodly.TextColor3 = Clr.RedGlow
 BtnAllGodly.Font = Enum.Font.GothamMedium
@@ -1404,7 +1416,7 @@ end
 for idx, item in ipairs(AllEggList) do
     local row = Instance.new("TextButton")
     row.Size = UDim2.new(1, 0, 0, 24)
-    row.BackgroundColor3 = Color3.fromRGB(34, 15, 20)
+    row.BackgroundColor3 = Color3.fromRGB(44, 14, 22)
     row.BorderSizePixel = 0
     row.Text = ""
     row.LayoutOrder = idx
@@ -1500,14 +1512,14 @@ local pSystem    = CreateTab("System",     6031280882, 6)
 
 Pages["Harvest"].Visible = true
 TabButtons["Harvest"].Btn.BackgroundTransparency = 0
-TabButtons["Harvest"].Btn.BackgroundColor3 = Color3.fromRGB(48, 18, 24)
+TabButtons["Harvest"].Btn.BackgroundColor3 = Color3.fromRGB(82, 20, 38)
 TabButtons["Harvest"].Label.TextColor3 = Clr.TextMain
 TabButtons["Harvest"].Icon.ImageColor3 = Clr.RedGlow
 TabButtons["Harvest"].Bar.Visible = true
 
 local MonitorCard = Instance.new("Frame")
 MonitorCard.Size = UDim2.new(1, 0, 0, 68)
-MonitorCard.BackgroundColor3 = Color3.fromRGB(26, 12, 16)
+MonitorCard.BackgroundColor3 = Color3.fromRGB(42, 13, 21)
 MonitorCard.BorderSizePixel = 0
 MonitorCard.LayoutOrder = 1
 MonitorCard.Parent = pHarvest
@@ -1751,7 +1763,7 @@ local eggCard = MakeCard(pHarvest, "Target Egg Filter", "Select which eggs to co
 BtnEggTrigger = Instance.new("TextButton")
 BtnEggTrigger.Size = UDim2.fromOffset(88, 22)
 BtnEggTrigger.Position = UDim2.new(1, -96, 0.5, -11)
-BtnEggTrigger.BackgroundColor3 = Color3.fromRGB(42, 16, 22)
+BtnEggTrigger.BackgroundColor3 = Color3.fromRGB(54, 17, 27)
 BtnEggTrigger.BorderSizePixel = 0
 BtnEggTrigger.Text = "None Selected"
 BtnEggTrigger.TextColor3 = Clr.TextDim
@@ -1967,7 +1979,7 @@ end)
 
 local ProfileCard = Instance.new("Frame")
 ProfileCard.Size = UDim2.new(1, 0, 0, 64)
-ProfileCard.BackgroundColor3 = Color3.fromRGB(26, 12, 16)
+ProfileCard.BackgroundColor3 = Color3.fromRGB(42, 13, 21)
 ProfileCard.BorderSizePixel = 0
 ProfileCard.LayoutOrder = 1
 ProfileCard.Parent = pSystem
