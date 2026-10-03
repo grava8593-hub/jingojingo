@@ -26,7 +26,7 @@ pcall(function()
     end)
 end)
 
-local iconPath = "ErdevaHubIcon.png"
+local iconPath = "ErdevaHubIconV2.png"
 
 pcall(function()
     if isfile(iconPath) then
