@@ -154,33 +154,60 @@ local function SafeTP(targetCFrame)
     root.AssemblyLinearVelocity = Vector3.zero
 end
 
-local function GlideToPosition(targetPos, customSpeed)
-    local root = GetRoot()
-    local hum = GetHum()
-    if not root then return end
+local function MoveWithPhysics(targetPos, safeSpeed, timeout)
+    safeSpeed = safeSpeed or 34
+    timeout = timeout or 15
+    
+    local char = LP.Character
+    if not char then return false end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not root or not hum then return false end
 
-    local startPos = root.Position
-    local endPos = targetPos + Vector3.new(0, 2.5, 0)
-    local dist = (startPos - endPos).Magnitude
+    root.Anchored = false
+    hum.PlatformStand = false
 
-    local speed = customSpeed or State.StealSpeed or 500
-    local totalTime = math.clamp(dist / speed, 0.1, 4.0)
+    local startTime = tick()
+    local reached = false
 
-    if hum then hum.PlatformStand = true end
-    root.Anchored = true
+    local rayParams = RaycastParams.new()
+    rayParams.FilterDescendantsInstances = {char}
+    rayParams.FilterType = RaycastFilterType.Exclude
 
-    local startTime = os.clock()
-    while os.clock() - startTime < totalTime and State.Running and (State.AutoSteal or State.Flying) do
-        local alpha = math.clamp((os.clock() - startTime) / totalTime, 0, 1)
-        root.CFrame = CFrame.new(startPos:Lerp(endPos, alpha))
-        task.wait(0.02)
+    while (tick() - startTime) < timeout do
+        RunService.Heartbeat:Wait()
+
+        if not char.Parent or hum.Health <= 0 then break end
+
+        local curPos = root.Position
+        local deltaX = targetPos.X - curPos.X
+        local deltaZ = targetPos.Z - curPos.Z
+        local distHorizontal = math.sqrt(deltaX * deltaX + deltaZ * deltaZ)
+
+        if distHorizontal <= 3.5 then
+            reached = true
+            break
+        end
+
+        local dirX = deltaX / distHorizontal
+        local dirZ = deltaZ / distHorizontal
+
+        local forwardRay = Workspace:Raycast(curPos, Vector3.new(dirX * 3, 0, dirZ * 3), rayParams)
+        if forwardRay and hum.FloorMaterial ~= Enum.Material.Air then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+
+        root.AssemblyLinearVelocity = Vector3.new(
+            dirX * safeSpeed,
+            root.AssemblyLinearVelocity.Y,
+            dirZ * safeSpeed
+        )
+
+        root.CFrame = CFrame.lookAt(curPos, Vector3.new(targetPos.X, curPos.Y, targetPos.Z))
     end
 
-    root.CFrame = CFrame.new(endPos)
-    root.Anchored = false
-    if hum then hum.PlatformStand = false end
-    root.AssemblyLinearVelocity = Vector3.zero
-    task.wait(0.05)
+    root.AssemblyLinearVelocity = Vector3.new(0, root.AssemblyLinearVelocity.Y, 0)
+    return reached
 end
 
 -- Deteksi Plot Milik Sendiri
@@ -322,36 +349,29 @@ local function PerformInstantSteal(target)
 end
 
 -- Pengantaran ke Base
-local function DeliverEggToBase(instant)
-    local root = GetRoot()
-    if not root then return end
+local function DeliverEggToBase(plotTargetPos)
+    local char = LP.Character
+    if not char then return false end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not hum or not root then return false end
 
-    local baseCFrame = State.MyPlotCFrame or FindMyPlot()
-    local basePos = baseCFrame and baseCFrame.Position or root.Position
+    hum.WalkSpeed = 16
+    hum.PlatformStand = false
+    root.Anchored = false
 
-    if instant then
-        SafeTP(CFrame.new(basePos + Vector3.new(0, 3, 0)))
-    else
-        GlideToPosition(basePos, State.StealSpeed or 500)
-    end
-    task.wait(0.1)
+    local success = MoveWithPhysics(plotTargetPos, 34, 20)
 
-    -- Taruh telur ke Nest / Plot
-    SafeFire(RF_AskPlaceEgg)
-    SafeFire(RF_AskFieldEggDrop)
-
-    -- Trigger Prompt place jika ada di sarang sendiri
-    if State.MyPlot then
-        for _, p in ipairs(State.MyPlot:GetDescendants()) do
-            if p:IsA("ProximityPrompt") and p.Enabled then
-                local act = string.lower(p.ActionText)
-                if string.find(act, "place") or string.find(act, "drop") or string.find(act, "put") then
-                    TriggerPrompt(p)
-                end
-            end
+    if success then
+        task.wait(0.2)
+        if RF_AskPlaceEgg then
+            pcall(function()
+                RF_AskPlaceEgg:InvokeServer()
+            end)
         end
     end
-    task.wait(0.15)
+
+    return success
 end
 
 -- Visual ESP
