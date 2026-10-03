@@ -75,9 +75,9 @@ pcall(function()
 end)
 
 local AllEggList = {
+    {name = "Volcanic Egg", tier = "Godly"},
     {name = "Blackhole Egg", tier = "Godly"},
     {name = "Bloom Egg", tier = "Godly"},
-    {name = "Volcanic Egg", tier = "Godly"},
     {name = "Solaris Egg", tier = "Godly"},
     {name = "Galaxy Egg", tier = "Legendary"},
     {name = "Aurora Egg", tier = "Godly"},
@@ -504,11 +504,11 @@ local function PerformEggPickup(egg)
     if not root then return false end
 
     if string.find(string.lower(egg.Name), "volcan") then
-        GlideToPosition(LairEntrancePos, State.FlySpeed or 350)
+        GlideToPosition(LairEntrancePos, State.FlySpeed or 500)
         task.wait(0.25)
     end
 
-    GlideToPosition(egg.Part.Position, State.FlySpeed or 350)
+    GlideToPosition(egg.Part.Position, State.FlySpeed or 500)
     task.wait(0.15)
 
     for _, prompt in ipairs(egg.Object:GetDescendants()) do
