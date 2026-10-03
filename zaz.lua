@@ -1044,6 +1044,21 @@ local function KeepUltraFpsVisible(instance)
     return instance:IsA("ProximityPrompt") or instance:FindFirstChildWhichIsA("ProximityPrompt", true) ~= nil
 end
 
+local function IsUltraFpsGround(instance)
+    if not instance:IsA("BasePart") then return false end
+    local name = string.lower(instance.Name)
+    if string.find(name, "ground", 1, true)
+        or string.find(name, "floor", 1, true)
+        or string.find(name, "terrain", 1, true)
+        or string.find(name, "land", 1, true)
+        or string.find(name, "baseplate", 1, true)
+        or string.find(name, "road", 1, true)
+        or string.find(name, "path", 1, true) then
+        return true
+    end
+    return instance.Size.X * instance.Size.Z >= 400 and instance.Size.Y <= 20
+end
+
 local function ApplyUltraFps(instance)
     local character = LP.Character
     if not UltraFps.Enabled or not instance or (character and instance:IsDescendantOf(character)) then return end
@@ -1052,7 +1067,7 @@ local function ApplyUltraFps(instance)
         SaveAndSet(instance, "Material", Enum.Material.SmoothPlastic)
         SaveAndSet(instance, "CastShadow", false)
         SaveAndSet(instance, "Reflectance", 0)
-        if not KeepUltraFpsVisible(instance) then
+        if not KeepUltraFpsVisible(instance) and not IsUltraFpsGround(instance) then
             SaveAndSet(instance, "LocalTransparencyModifier", 1)
         end
     elseif instance:IsA("Decal") or instance:IsA("Texture") then
