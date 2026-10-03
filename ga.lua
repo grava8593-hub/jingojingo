@@ -342,7 +342,32 @@ local function SafeTP(targetCFrame)
     root.AssemblyLinearVelocity = Vector3.zero
 end
 
-local function GlideToPosition(targetPos, customSpeed)
+local function GlideToPosition(targetPos)
+    local root = GetRoot()
+    local hum = GetHum()
+    if not root then return end
+
+    local startPos = root.Position
+    local endPos = targetPos + Vector3.new(0, 2.5, 0)
+    local totalTime = 0.55 -- Hanya 0.55 detik langsung sampai mulus
+
+    if hum then hum.PlatformStand = true end
+    root.Anchored = true
+
+    local startTime = os.clock()
+    while os.clock() - startTime < totalTime and State.Running do
+        local alpha = math.clamp((os.clock() - startTime) / totalTime, 0, 1)
+        root.CFrame = CFrame.new(startPos:Lerp(endPos, alpha))
+        task.wait(0.015)
+    end
+
+    root.CFrame = CFrame.new(endPos)
+    root.Anchored = false
+    if hum then hum.PlatformStand = false end
+    root.AssemblyLinearVelocity = Vector3.zero
+end
+
+local function GlideToPosition(targetPos)
     local root = GetRoot()
     local hum = GetHum()
     if not root then return end
@@ -351,49 +376,21 @@ local function GlideToPosition(targetPos, customSpeed)
     local endPos = targetPos + Vector3.new(0, 2.5, 0)
     local dist = (startPos - endPos).Magnitude
 
-    local speed = customSpeed or State.ReturnSpeed or 350
-    local totalTime = math.clamp(dist / speed, 0.1, 15.0)
+    -- Pakai ReturnSpeed (500) yang sama persis seperti saat pulang
+    local speed = math.max(State.ReturnSpeed or 500, 50)
+    local totalTime = math.clamp(dist / speed, 0.1, 4.0) -- Maksimal 4 detik agar tidak kelamaan
 
     if hum then hum.PlatformStand = true end
     root.Anchored = true
 
     local startTime = os.clock()
-    while os.clock() - startTime < totalTime and (State.MasterFarm or State.Flying) and State.Running do
+    while os.clock() - startTime < totalTime and State.MasterFarm and State.Running do
         local alpha = math.clamp((os.clock() - startTime) / totalTime, 0, 1)
         root.CFrame = CFrame.new(startPos:Lerp(endPos, alpha))
         task.wait(0.02)
     end
 
     root.CFrame = CFrame.new(endPos)
-    root.Anchored = false
-    if hum then hum.PlatformStand = false end
-    root.AssemblyLinearVelocity = Vector3.zero
-    task.wait(0.05)
-end
-
-local function GlideToBaseSafe(basePos)
-    local root = GetRoot()
-    local hum = GetHum()
-    if not root then return end
-
-    local startPos = root.Position
-    local targetPos = basePos + Vector3.new(0, 2.5, 0)
-    local dist = (startPos - targetPos).Magnitude
-
-    local speed = math.max(State.ReturnSpeed or 250, 50)
-    local totalTime = math.clamp(dist / speed, 0.1, 8.0)
-
-    if hum then hum.PlatformStand = true end
-    root.Anchored = true
-
-    local startTime = os.clock()
-    while os.clock() - startTime < totalTime and State.Running do
-        local alpha = math.clamp((os.clock() - startTime) / totalTime, 0, 1)
-        root.CFrame = CFrame.new(startPos:Lerp(targetPos, alpha))
-        task.wait(0.02)
-    end
-
-    root.CFrame = CFrame.new(targetPos)
     root.Anchored = false
     if hum then hum.PlatformStand = false end
     root.AssemblyLinearVelocity = Vector3.zero
@@ -502,14 +499,13 @@ local LairEntrancePos = Vector3.new(-4983.16, 41274.68, -3625.43)
 local function PerformEggPickup(egg)
     local root = GetRoot()
     if not root then return false end
-
+    
     if string.find(string.lower(egg.Name), "volcan") then
-        GlideToPosition(LairEntrancePos, State.FlySpeed or 500)
-        task.wait(0.25)
+        GlideToPosition(LairEntrancePos)
+        task.wait(0.2)
     end
 
-    GlideToPosition(egg.Part.Position, State.FlySpeed or 500)
-    task.wait(0.15)
+       GlideToPosition(egg.Part.Position)
 
     for _, prompt in ipairs(egg.Object:GetDescendants()) do
         if prompt:IsA("ProximityPrompt") then
