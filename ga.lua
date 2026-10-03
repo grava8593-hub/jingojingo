@@ -351,7 +351,7 @@ local function GlideToPosition(targetPos, customSpeed)
     local endPos = targetPos + Vector3.new(0, 2.5, 0)
     local dist = (startPos - endPos).Magnitude
 
-    local speed = customSpeed or State.FlySpeed or 85
+    local speed = customSpeed or State.ReturnSpeed or 350
     local totalTime = math.clamp(dist / speed, 0.1, 15.0)
 
     if hum then hum.PlatformStand = true end
@@ -504,11 +504,11 @@ local function PerformEggPickup(egg)
     if not root then return false end
 
     if string.find(string.lower(egg.Name), "volcan") then
-        GlideToPosition(LairEntrancePos, State.FlySpeed or 85)
+        GlideToPosition(LairEntrancePos, State.FlySpeed or 350)
         task.wait(0.25)
     end
 
-    GlideToPosition(egg.Part.Position, State.FlySpeed or 85)
+    GlideToPosition(egg.Part.Position, State.FlySpeed or 350)
     task.wait(0.15)
 
     for _, prompt in ipairs(egg.Object:GetDescendants()) do
