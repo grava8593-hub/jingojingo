@@ -778,7 +778,7 @@ Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 12)
 
 local MainStroke = Instance.new("UIStroke")
 MainStroke.Color = Clr.CardBorder
-MainStroke.Thickness = 1.4
+MainStroke.Thickness = 1.6
 MainStroke.Parent = Main
 
 local MainGradient = Instance.new("UIGradient")
@@ -821,7 +821,7 @@ end)
 
 local Sidebar = Instance.new("Frame")
 Sidebar.Size = UDim2.new(0, 108, 1, -48)
-Sidebar.Position = UDim2.new(1, -114, 0, 42)
+Sidebar.Position = UDim2.fromOffset(6, 42)
 Sidebar.BackgroundColor3 = Clr.Sidebar
 Sidebar.BorderSizePixel = 0
 Sidebar.Parent = Main
@@ -837,7 +837,7 @@ SidebarGradient.Parent = Sidebar
 
 local SideBorderLine = Instance.new("Frame")
 SideBorderLine.Size = UDim2.new(0, 1, 1, -16)
-SideBorderLine.Position = UDim2.new(0, 0, 0, 8)
+SideBorderLine.Position = UDim2.new(1, -1, 0, 8)
 SideBorderLine.BackgroundColor3 = Clr.CardBorder
 SideBorderLine.BorderSizePixel = 0
 SideBorderLine.Parent = Sidebar
@@ -962,7 +962,7 @@ end)
 
 local ContentArea = Instance.new("Frame")
 ContentArea.Size = UDim2.new(1, -122, 1, -46)
-ContentArea.Position = UDim2.fromOffset(0, 46)
+ContentArea.Position = UDim2.fromOffset(116, 46)
 ContentArea.BackgroundTransparency = 1
 ContentArea.Parent = Main
 
@@ -1041,13 +1041,21 @@ local function CreateTab(name, assetId, order)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, 0, 0, 28)
     btn.Position = UDim2.new()
-    btn.BackgroundColor3 = Clr.Card
+    btn.BackgroundColor3 = Color3.fromRGB(72, 17, 32)
     btn.BackgroundTransparency = 1
     btn.Text = ""
     btn.BorderSizePixel = 0
     btn.LayoutOrder = order
     btn.Parent = TabContainer
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+
+    local tabGradient = Instance.new("UIGradient")
+    tabGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(92, 22, 42)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(55, 12, 24))
+    })
+    tabGradient.Rotation = 0
+    tabGradient.Parent = btn
 
     local barIndicator = Instance.new("Frame")
     barIndicator.Size = UDim2.new(0, 3, 0, 16)
@@ -1105,7 +1113,7 @@ local function CreateTab(name, assetId, order)
             local isSel = (bName == name)
             TweenService:Create(bData.Btn, TweenInfo.new(0.14), {
                 BackgroundTransparency = isSel and 0 or 1,
-                BackgroundColor3 = isSel and Color3.fromRGB(82, 20, 38) or Clr.Card
+                BackgroundColor3 = isSel and Color3.fromRGB(82, 20, 38) or Color3.fromRGB(72, 17, 32)
             }):Play()
             TweenService:Create(bData.Label, TweenInfo.new(0.14), {TextColor3 = isSel and Clr.TextMain or Clr.TextDim}):Play()
             TweenService:Create(bData.Icon, TweenInfo.new(0.14), {ImageColor3 = isSel and Clr.RedGlow or Clr.TextDim}):Play()
