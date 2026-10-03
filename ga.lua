@@ -1,7 +1,7 @@
 --[[
-    ERDEVA HUB - STEAL AN EGG
-    Fixed & Optimized Version
-    All bugs resolved, error handling added
+    ERDEVA HUB - STEAL AN EGG (SAFE VERSION)
+    Untuk game sendiri. Tidak pakai teleport instan.
+    Ada throttle & validasi untuk menghindari kick.
 ]]
 
 local Players = game:GetService("Players")
@@ -33,6 +33,7 @@ pcall(function()
     end)
 end)
 
+-- ==================== ICONS ====================
 local iconPath = "ErdevaHubIcon.png"
 if not isfile(iconPath) then
     pcall(function()
@@ -41,19 +42,11 @@ if not isfile(iconPath) then
 end
 local hubCustomIcon = isfile(iconPath) and getcustomasset(iconPath) or "rbxassetid://6031075931"
 
-local discordIconPath = "ErdevaDiscordIcon.png"
-pcall(function()
-    if isfile(discordIconPath) then delfile(discordIconPath) end
-    writefile(discordIconPath, game:HttpGet("https://raw.githubusercontent.com/grava8593-hub/icon/main/dcicon.png"))
-end)
-local discordCustomIcon = isfile(discordIconPath) and getcustomasset(discordIconPath) or ""
-
+-- ==================== REMOTE DISCOVERY ====================
 local Net = RS:WaitForChild("Packages", 10) and RS.Packages:WaitForChild("Networking", 10)
 local function GetNetRemote(name)
     if not Net then return nil end
-    local ok, remote = pcall(function()
-        return Net:FindFirstChild(name, true)
-    end)
+    local ok, remote = pcall(function() return Net:FindFirstChild(name, true) end)
     return ok and remote or nil
 end
 
@@ -63,35 +56,57 @@ local RF_AskPlaceEgg      = GetNetRemote("RF/EggWorld/AskPlaceEgg")
 local RF_AskHatch         = GetNetRemote("RF/EggWorld/AskHatch")
 local RF_AskFinishHatch   = GetNetRemote("RF/EggWorld/AskFinishHatch")
 local RF_AskSkipGrowth    = GetNetRemote("RF/EggWorld/AskSkipGrowth")
-
 local RE_SellEveryPet     = GetNetRemote("RE/PetSatchel/SellEveryPet")
-local RE_SellPet          = GetNetRemote("RE/PetSatchel/SellPet")
 local RF_WearBest         = GetNetRemote("RF/Haul/WearBest")
-
 local RE_BatSwing         = GetNetRemote("RE/BatSwing/Trigger")
-
 local RF_AwayEarnings     = GetNetRemote("RF/AwayEarnings/AskCollect")
 local RF_GroupPerk        = GetNetRemote("RF/GroupPerk/RedeemPerk")
 local RF_CodexRedeemAll   = GetNetRemote("RF/Codex/AskRedeemAll")
 local RF_ClaimQuest       = GetNetRemote("RF/OnboardingQuestline/AskClaim")
-
 local RE_SpeedGained      = GetNetRemote("RE/Treadmill/SpeedGained")
 local RF_AskTierRaise     = GetNetRemote("RF/Treadmill/AskTierRaise")
 
+-- Debug: cek remote yang ketemu
+local missingRemotes = {}
+local remoteList = {
+    RF_AskFieldEggCarry = "RF/EggWorld/AskFieldEggCarry",
+    RF_AskFieldEggDrop = "RF/EggWorld/AskFieldEggDrop",
+    RF_AskPlaceEgg = "RF/EggWorld/AskPlaceEgg",
+    RF_AskHatch = "RF/EggWorld/AskHatch",
+    RF_AskFinishHatch = "RF/EggWorld/AskFinishHatch",
+    RF_AskSkipGrowth = "RF/EggWorld/AskSkipGrowth",
+    RE_SellEveryPet = "RE/PetSatchel/SellEveryPet",
+    RF_WearBest = "RF/Haul/WearBest",
+    RE_BatSwing = "RE/BatSwing/Trigger",
+    RF_AwayEarnings = "RF/AwayEarnings/AskCollect",
+    RF_GroupPerk = "RF/GroupPerk/RedeemPerk",
+    RF_CodexRedeemAll = "RF/Codex/AskRedeemAll",
+    RF_ClaimQuest = "RF/OnboardingQuestline/AskClaim",
+    RE_SpeedGained = "RE/Treadmill/SpeedGained",
+    RF_AskTierRaise = "RF/Treadmill/AskTierRaise",
+}
+for varName, remotePath in pairs(remoteList) do
+    if not _G[varName] and not GetNetRemote(remotePath) then
+        table.insert(missingRemotes, remotePath)
+    end
+end
+if #missingRemotes > 0 then
+    warn("[Erdeva] Remote tidak ditemukan: " .. table.concat(missingRemotes, ", "))
+end
+
+-- ==================== STATE ====================
 local State = {
     AutoSteal       = false,
-    InstantSteal    = false,
     AutoPlace       = false,
     AutoHatch       = false,
     AutoSellPets    = false,
     AutoEquipBest   = false,
     AutoBatSwing    = false,
     AutoTreadmill   = false,
-    AutoClaimGifts  = false,
     EggESP          = false,
     Flying          = false,
     FlySpeed        = 75,
-    StealSpeed      = 500,
+    StealSpeed      = 60,
     WalkSpeed       = 16,
     JumpPower       = 50,
     EggsStolen      = 0,
@@ -99,14 +114,25 @@ local State = {
     TargetPlot      = "None",
     MyPlot          = nil,
     MyPlotCFrame    = nil,
-    Running         = true
+    Running         = true,
+    LastAction      = 0,
+    ActionCooldown  = 0.5,
 }
 
 local IgnoredPrompts = {}
 local UpdateMonitorUI = function() end
 
--- ==================== UTILITY FUNCTIONS ====================
+-- ==================== THROTTLE ====================
+local function CanAct()
+    local now = tick()
+    if now - State.LastAction < State.ActionCooldown then
+        return false
+    end
+    State.LastAction = now
+    return true
+end
 
+-- ==================== SAFE FIRE ====================
 local function SafeFire(remote, ...)
     if not remote then return end
     local ok, err = pcall(function(...)
@@ -138,35 +164,12 @@ local function TriggerPrompt(prompt)
         if fireproximityprompt then
             fireproximityprompt(prompt)
         end
-        if prompt.InputHoldBegin and prompt.InputHoldEnd then
-            prompt:InputHoldBegin()
-            task.wait(0.2)
-            prompt:InputHoldEnd()
-        end
     end)
 end
 
-local function SafeTP(targetCFrame)
-    if not targetCFrame then return end
-    local char = LP.Character
-    local root = GetRoot()
-    if not root or not char then return end
-
-    for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.CanCollide = false
-        end
-    end
-
-    root.AssemblyLinearVelocity = Vector3.zero
-    root.AssemblyAngularVelocity = Vector3.zero
-    root.CFrame = targetCFrame
-    task.wait(0.04)
-    root.AssemblyLinearVelocity = Vector3.zero
-end
-
-local function MoveWithPhysics(targetPos, safeSpeed, timeout)
-    safeSpeed = safeSpeed or 34
+-- ==================== MOVE PHYSICS (NO TELEPORT) ====================
+local function MoveToPosition(targetPos, speed, timeout)
+    speed = speed or 30
     timeout = timeout or 15
 
     local char = LP.Character
@@ -187,9 +190,8 @@ local function MoveWithPhysics(targetPos, safeSpeed, timeout)
 
     while (tick() - startTime) < timeout do
         RunService.Heartbeat:Wait()
-
-        if not char.Parent or hum.Health <= 0 then break end
         if not State.Running then break end
+        if not char.Parent or hum.Health <= 0 then break end
 
         local curPos = root.Position
         local deltaX = targetPos.X - curPos.X
@@ -210,9 +212,9 @@ local function MoveWithPhysics(targetPos, safeSpeed, timeout)
         end
 
         root.AssemblyLinearVelocity = Vector3.new(
-            dirX * safeSpeed,
+            dirX * speed,
             root.AssemblyLinearVelocity.Y,
-            dirZ * safeSpeed
+            dirZ * speed
         )
 
         root.CFrame = CFrame.lookAt(curPos, Vector3.new(targetPos.X, curPos.Y, targetPos.Z))
@@ -222,40 +224,7 @@ local function MoveWithPhysics(targetPos, safeSpeed, timeout)
     return reached
 end
 
--- ==================== GLIDE FUNCTION (FIXED) ====================
-
-local function GlideToPosition(targetPos, speed)
-    speed = speed or 500
-    local char = LP.Character
-    if not char then return false end
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return false end
-
-    root.Anchored = false
-    local startTime = tick()
-    local timeout = 5
-
-    while (tick() - startTime) < timeout do
-        RunService.Heartbeat:Wait()
-        if not State.Running then break end
-
-        local curPos = root.Position
-        local dir = (targetPos - curPos)
-        local dist = dir.Magnitude
-
-        if dist <= 4 then
-            break
-        end
-
-        root.AssemblyLinearVelocity = dir.Unit * speed
-    end
-
-    root.AssemblyLinearVelocity = Vector3.zero
-    return true
-end
-
 -- ==================== FIND MY PLOT ====================
-
 local function FindMyPlot()
     local plots = Workspace:FindFirstChild("Plots")
     if plots then
@@ -264,14 +233,12 @@ local function FindMyPlot()
             if not ok then
                 ok, pivot = pcall(function() return pl.CFrame end)
             end
-            if not ok then
-                pivot = CFrame.new(0, 10, 0)
-            end
+            if not ok then pivot = CFrame.new(0, 10, 0) end
 
             for _, descendant in ipairs(pl:GetDescendants()) do
                 if descendant:IsA("TextLabel") then
                     local text = descendant.Text or ""
-                    if string.find(string.lower(text), string.lower(LP.Name)) or 
+                    if string.find(string.lower(text), string.lower(LP.Name)) or
                        string.find(string.lower(text), string.lower(LP.DisplayName)) then
                         State.MyPlot = pl
                         return pivot + Vector3.new(0, 3, 0)
@@ -281,15 +248,9 @@ local function FindMyPlot()
                     State.MyPlot = pl
                     return pivot + Vector3.new(0, 3, 0)
                 end
-                if descendant:IsA("StringValue") and 
-                   (descendant.Value == LP.Name or descendant.Value == tostring(LP.UserId)) then
-                    State.MyPlot = pl
-                    return pivot + Vector3.new(0, 3, 0)
-                end
             end
         end
     end
-
     local spawn = Workspace:FindFirstChildOfClass("SpawnLocation")
     if spawn then return spawn.CFrame + Vector3.new(0, 3, 0) end
     local root = GetRoot()
@@ -299,29 +260,26 @@ end
 task.spawn(function()
     task.wait(1)
     local ok, result = pcall(FindMyPlot)
-    if ok then
-        State.MyPlotCFrame = result
-    end
+    if ok then State.MyPlotCFrame = result end
 end)
 
--- ==================== EGG DETECTION ====================
-
+-- ==================== CARRY CHECK ====================
 local function IsCarryingEgg()
     local char = LP.Character
     if not char then return false end
-
     for _, item in ipairs(char:GetChildren()) do
         if item:IsA("Tool") and string.find(string.lower(item.Name), "egg") then
             return true
         end
-        if item:IsA("Model") and string.find(string.lower(item.Name), "egg") and 
-           not string.find(string.lower(item.Name), "pet") then
+        if item:IsA("Model") and string.find(string.lower(item.Name), "egg")
+           and not string.find(string.lower(item.Name), "pet") then
             return true
         end
     end
     return false
 end
 
+-- ==================== FIND EGGS ====================
 local function FindStealableEggs()
     local list = {}
     local myRoot = GetRoot()
@@ -338,21 +296,18 @@ local function FindStealableEggs()
         if p:IsA("ProximityPrompt") and not IgnoredPrompts[p] then
             local action = string.lower(p.ActionText or "")
             local objText = string.lower(p.ObjectText or "")
-
             if string.find(action, "steal") or string.find(action, "take") or string.find(objText, "egg") then
                 local parentPlot = p:FindFirstAncestor("Plots")
                 local isMyPlot = false
-                if myPlot and p:IsDescendantOf(myPlot) then
-                    isMyPlot = true
-                end
-
+                if myPlot and p:IsDescendantOf(myPlot) then isMyPlot = true end
                 if not isMyPlot then
-                    local parentPart = p.Parent:IsA("BasePart") and p.Parent or p.Parent:FindFirstChildWhichIsA("BasePart")
+                    local parentPart = p.Parent:IsA("BasePart") and p.Parent
+                        or p.Parent:FindFirstChildWhichIsA("BasePart")
                     if parentPart then
                         local dist = (myPos - parentPart.Position).Magnitude
                         table.insert(list, {
-                            Prompt   = p,
-                            Part     = parentPart,
+                            Prompt = p,
+                            Part = parentPart,
                             Distance = dist,
                             PlotName = parentPlot and parentPlot.Name or "Wild"
                         })
@@ -361,22 +316,18 @@ local function FindStealableEggs()
             end
         end
     end
-
-    table.sort(list, function(a, b)
-        return a.Distance < b.Distance
-    end)
-
+    table.sort(list, function(a, b) return a.Distance < b.Distance end)
     return list
 end
 
--- ==================== STEAL ACTIONS ====================
-
+-- ==================== STEAL (NO TELEPORT) ====================
 local function PerformEggSteal(target)
+    if not CanAct() then return false end
     local root = GetRoot()
     if not root then return false end
 
-    GlideToPosition(target.Part.Position, State.StealSpeed)
-    task.wait(0.1)
+    MoveToPosition(target.Part.Position, State.StealSpeed, 8)
+    task.wait(0.15)
     if not State.Running then return false end
 
     TriggerPrompt(target.Prompt)
@@ -390,26 +341,7 @@ local function PerformEggSteal(target)
     return IsCarryingEgg()
 end
 
-local function PerformInstantSteal(target)
-    local root = GetRoot()
-    if not root then return false end
-
-    SafeTP(CFrame.new(target.Part.Position + Vector3.new(0, 3, 0)))
-    task.wait(0.05)
-    if not State.Running then return false end
-
-    TriggerPrompt(target.Prompt)
-    SafeFire(RF_AskFieldEggCarry, target.Prompt.Parent)
-
-    local startWait = os.clock()
-    while os.clock() - startWait < 0.6 do
-        if IsCarryingEgg() then return true end
-        task.wait(0.05)
-    end
-    return IsCarryingEgg()
-end
-
-local function DeliverEggToBase(instant)
+local function DeliverEggToBase()
     local char = LP.Character
     if not char then return false end
     local hum = char:FindFirstChildOfClass("Humanoid")
@@ -419,29 +351,20 @@ local function DeliverEggToBase(instant)
     local targetCFrame = State.MyPlotCFrame or FindMyPlot()
     State.MyPlotCFrame = targetCFrame
 
-    if instant then
-        SafeTP(targetCFrame)
-        task.wait(0.2)
-    else
-        hum.WalkSpeed = 16
-        hum.PlatformStand = false
-        root.Anchored = false
-        MoveWithPhysics(targetCFrame.Position, 34, 20)
-        task.wait(0.2)
-    end
+    hum.WalkSpeed = 16
+    hum.PlatformStand = false
+    root.Anchored = false
+    MoveToPosition(targetCFrame.Position, 30, 20)
+    task.wait(0.2)
 
     if RF_AskPlaceEgg then
         pcall(function() RF_AskPlaceEgg:InvokeServer() end)
     end
-    if RF_AskFieldEggDrop then
-        SafeFire(RF_AskFieldEggDrop)
-    end
-
+    if RF_AskFieldEggDrop then SafeFire(RF_AskFieldEggDrop) end
     return true
 end
 
 -- ==================== ESP ====================
-
 local espFolder = nil
 local function UpdateESP(enable)
     if espFolder then espFolder:Destroy(); espFolder = nil end
@@ -485,7 +408,6 @@ local function UpdateESP(enable)
 end
 
 -- ==================== FLY ====================
-
 local flyBV, flyBG
 local function ToggleFly(on)
     State.Flying = on
@@ -499,14 +421,14 @@ local function ToggleFly(on)
 
         flyBV = Instance.new("BodyVelocity")
         flyBV.Name = "ErdevaFlyBV"
-        flyBV.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+        flyBV.MaxForce = Vector3.new(1e5, 1e5, 1e5)
         flyBV.Velocity = Vector3.zero
         flyBV.Parent = root
 
         flyBG = Instance.new("BodyGyro")
         flyBG.Name = "ErdevaFlyBG"
-        flyBG.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
-        flyBG.P = 1e6
+        flyBG.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+        flyBG.P = 1e4
         flyBG.CFrame = root.CFrame
         flyBG.Parent = root
 
@@ -543,20 +465,18 @@ heartbeatConn = RunService.Heartbeat:Connect(function()
     end
 end)
 
--- ==================== UI STYLING ====================
-
+-- ==================== UI ====================
 local Clr = {
-    MainBg     = Color3.fromRGB(18, 9, 12),
-    Sidebar    = Color3.fromRGB(25, 11, 15),
-    Card       = Color3.fromRGB(32, 14, 18),
+    MainBg = Color3.fromRGB(18, 9, 12),
+    Sidebar = Color3.fromRGB(25, 11, 15),
+    Card = Color3.fromRGB(32, 14, 18),
     CardBorder = Color3.fromRGB(80, 24, 32),
-    RedAccent  = Color3.fromRGB(235, 30, 48),
-    RedDark    = Color3.fromRGB(150, 18, 28),
-    RedGlow    = Color3.fromRGB(255, 75, 95),
-    TextMain   = Color3.fromRGB(255, 240, 242),
-    TextDim    = Color3.fromRGB(195, 145, 152),
-    ToggleOff  = Color3.fromRGB(48, 18, 24),
-    Discord    = Color3.fromRGB(88, 101, 242)
+    RedAccent = Color3.fromRGB(235, 30, 48),
+    RedDark = Color3.fromRGB(150, 18, 28),
+    RedGlow = Color3.fromRGB(255, 75, 95),
+    TextMain = Color3.fromRGB(255, 240, 242),
+    TextDim = Color3.fromRGB(195, 145, 152),
+    ToggleOff = Color3.fromRGB(48, 18, 24),
 }
 
 local SG = Instance.new("ScreenGui")
@@ -565,19 +485,7 @@ SG.ResetOnSpawn = false
 SG.IgnoreGuiInset = true
 SG.Parent = targetParent
 
-local FloatBtn = Instance.new("ImageButton")
-FloatBtn.Size = UDim2.fromOffset(46, 46)
-FloatBtn.Position = UDim2.new(0, 18, 0.35, 0)
-FloatBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 24)
-FloatBtn.Image = hubCustomIcon
-FloatBtn.BorderSizePixel = 0
-FloatBtn.Active = true
-FloatBtn.Visible = false
-FloatBtn.Parent = SG
-Instance.new("UICorner", FloatBtn).CornerRadius = UDim.new(1, 0)
-
 local Main = Instance.new("Frame")
-Main.Name = "MainFrame"
 Main.AnchorPoint = Vector2.new(0.5, 0.5)
 Main.Size = UDim2.fromOffset(485, 290)
 Main.Position = UDim2.new(0.5, 0, 0.5, 0)
@@ -591,30 +499,6 @@ local MainStroke = Instance.new("UIStroke")
 MainStroke.Color = Color3.fromRGB(160, 28, 40)
 MainStroke.Thickness = 1.4
 MainStroke.Parent = Main
-
-FloatBtn.MouseButton1Click:Connect(function()
-    FloatBtn.Visible = false
-    Main.Visible = true
-end)
-
-local fDragging = false
-local fDragStart, fStartPos
-FloatBtn.InputBegan:Connect(function(i)
-    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-        fDragging = true; fDragStart = i.Position; fStartPos = FloatBtn.Position
-    end
-end)
-UIS.InputEnded:Connect(function(i)
-    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-        fDragging = false
-    end
-end)
-UIS.InputChanged:Connect(function(i)
-    if fDragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
-        local delta = i.Position - fDragStart
-        FloatBtn.Position = UDim2.new(fStartPos.X.Scale, fStartPos.X.Offset + delta.X, fStartPos.Y.Scale, fStartPos.Y.Offset + delta.Y)
-    end
-end)
 
 local Sidebar = Instance.new("Frame")
 Sidebar.Size = UDim2.new(0, 138, 1, 0)
@@ -692,14 +576,12 @@ Topbar.Parent = ContentArea
 local function DestroyAll()
     State.Running = false
     State.AutoSteal = false
-    State.InstantSteal = false
     State.AutoPlace = false
     State.AutoHatch = false
     State.AutoSellPets = false
     State.AutoEquipBest = false
     State.AutoBatSwing = false
     State.AutoTreadmill = false
-    State.AutoClaimGifts = false
     State.EggESP = false
     ToggleFly(false)
     UpdateESP(false)
@@ -720,22 +602,6 @@ CloseBtn.BorderSizePixel = 0
 CloseBtn.Parent = Topbar
 Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 5)
 CloseBtn.MouseButton1Click:Connect(DestroyAll)
-
-local MinMainBtn = Instance.new("TextButton")
-MinMainBtn.Size = UDim2.fromOffset(20, 20)
-MinMainBtn.Position = UDim2.new(1, -50, 0.5, -10)
-MinMainBtn.BackgroundColor3 = Color3.fromRGB(36, 16, 20)
-MinMainBtn.Text = "-"
-MinMainBtn.TextColor3 = Clr.TextDim
-MinMainBtn.Font = Enum.Font.GothamBold
-MinMainBtn.TextSize = 12
-MinMainBtn.BorderSizePixel = 0
-MinMainBtn.Parent = Topbar
-Instance.new("UICorner", MinMainBtn).CornerRadius = UDim.new(0, 5)
-MinMainBtn.MouseButton1Click:Connect(function()
-    Main.Visible = false
-    FloatBtn.Visible = true
-end)
 
 local mDragging, mStart, mPos
 Topbar.InputBegan:Connect(function(i)
@@ -834,7 +700,6 @@ local function CreateTab(name, assetId, order)
             bData.Bar.Visible = isSel
         end
     end)
-
     return page
 end
 
@@ -900,16 +765,10 @@ local function MakeToggle(parent, title, desc, default, order, callback)
     local state = default
     btn.MouseButton1Click:Connect(function()
         state = not state
-        TweenService:Create(btn, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-            BackgroundColor3 = state and Clr.RedAccent or Clr.ToggleOff
-        }):Play()
-        TweenService:Create(dot, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-            Position = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
-        }):Play()
+        TweenService:Create(btn, TweenInfo.new(0.16), {BackgroundColor3 = state and Clr.RedAccent or Clr.ToggleOff}):Play()
+        TweenService:Create(dot, TweenInfo.new(0.16), {Position = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)}):Play()
         local ok, err = pcall(callback, state)
-        if not ok then
-            warn("[Erdeva] Callback error:", err)
-        end
+        if not ok then warn("[Erdeva] Callback error:", err) end
     end)
     return card
 end
@@ -930,16 +789,13 @@ local function MakeButton(parent, text, order, callback)
     s.Color = Clr.CardBorder
     s.Thickness = 1
     s.Parent = b
-
     b.MouseButton1Click:Connect(function()
         TweenService:Create(b, TweenInfo.new(0.08), {BackgroundColor3 = Clr.RedDark}):Play()
         task.delay(0.1, function()
             TweenService:Create(b, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(40, 16, 22)}):Play()
         end)
         local ok, err = pcall(callback)
-        if not ok then
-            warn("[Erdeva] Button callback error:", err)
-        end
+        if not ok then warn("[Erdeva] Button error:", err) end
     end)
     return b
 end
@@ -1003,7 +859,6 @@ local function MakeSlider(parent, title, minVal, maxVal, curVal, order, callback
     hit.BackgroundTransparency = 1
     hit.Text = ""
     hit.Parent = bar
-
     hit.InputBegan:Connect(function(i)
         if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
             sliding = true
@@ -1014,7 +869,6 @@ local function MakeSlider(parent, title, minVal, maxVal, curVal, order, callback
             sliding = false
         end
     end)
-
     UIS.InputChanged:Connect(function(i)
         if sliding and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
             local rel = math.clamp((i.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
@@ -1022,20 +876,18 @@ local function MakeSlider(parent, title, minVal, maxVal, curVal, order, callback
             fill.Size = UDim2.new(rel, 0, 1, 0)
             valBadge.Text = tostring(val)
             local ok, err = pcall(callback, val)
-            if not ok then warn("[Erdeva] Slider callback error:", err) end
+            if not ok then warn("[Erdeva] Slider error:", err) end
         end
     end)
 end
 
--- ==================== TABS SETUP ====================
-
-local pSteal     = CreateTab("Steal",      10734965572, 1)
-local pBase      = CreateTab("Base & Nest", 6031265976, 2)
-local pSatchel   = CreateTab("Pets",       6034287594, 3)
-local pCombat    = CreateTab("Combat",     6031763426, 4)
-local pTeleport  = CreateTab("Teleport",   6031154871, 5)
-local pMovement  = CreateTab("Movement",   6034287594, 6)
-local pSystem    = CreateTab("System",     6031280882, 7)
+-- ==================== TABS ====================
+local pSteal    = CreateTab("Steal",      10734965572, 1)
+local pBase     = CreateTab("Base",       6031265976, 2)
+local pSatchel  = CreateTab("Pets",       6034287594, 3)
+local pCombat   = CreateTab("Combat",     6031763426, 4)
+local pMovement = CreateTab("Movement",   6031154871, 5)
+local pSystem   = CreateTab("System",     6031280882, 6)
 
 Pages["Steal"].Visible = true
 TabButtons["Steal"].Btn.BackgroundTransparency = 0
@@ -1044,8 +896,7 @@ TabButtons["Steal"].Label.TextColor3 = Clr.TextMain
 TabButtons["Steal"].Icon.ImageColor3 = Clr.RedGlow
 TabButtons["Steal"].Bar.Visible = true
 
--- ==================== MONITOR CARD ====================
-
+-- ==================== MONITOR ====================
 local MonitorCard = Instance.new("Frame")
 MonitorCard.Size = UDim2.new(1, 0, 0, 68)
 MonitorCard.BackgroundColor3 = Color3.fromRGB(26, 12, 16)
@@ -1062,7 +913,7 @@ local MTitle = Instance.new("TextLabel")
 MTitle.Size = UDim2.new(0.5, 0, 0, 16)
 MTitle.Position = UDim2.fromOffset(10, 6)
 MTitle.BackgroundTransparency = 1
-MTitle.Text = "STEAL ENGINE MONITOR"
+MTitle.Text = "STEAL ENGINE"
 MTitle.TextColor3 = Clr.TextDim
 MTitle.Font = Enum.Font.GothamBold
 MTitle.TextSize = 9.5
@@ -1095,7 +946,7 @@ local MMeta = Instance.new("TextLabel")
 MMeta.Size = UDim2.new(1, -20, 0, 14)
 MMeta.Position = UDim2.fromOffset(10, 44)
 MMeta.BackgroundTransparency = 1
-MMeta.Text = "Eggs Stolen: 0 | Speed: 500"
+MMeta.Text = "Eggs: 0 | Speed: 60"
 MMeta.TextColor3 = Clr.RedGlow
 MMeta.Font = Enum.Font.Gotham
 MMeta.TextSize = 9
@@ -1104,31 +955,30 @@ MMeta.Parent = MonitorCard
 
 UpdateMonitorUI = function()
     MStatus.Text = "Status: " .. State.Status
-    if string.find(State.Status, "Stealing") or string.find(State.Status, "Taking") then
+    if string.find(State.Status, "Stealing") then
         MStatus.TextColor3 = Color3.fromRGB(255, 185, 80)
-    elseif string.find(State.Status, "Base") or string.find(State.Status, "Placing") then
+    elseif string.find(State.Status, "Base") then
         MStatus.TextColor3 = Color3.fromRGB(100, 210, 255)
     else
         MStatus.TextColor3 = Color3.fromRGB(130, 240, 160)
     end
     MTarget.Text = "Target: Plot " .. State.TargetPlot
-    MMeta.Text = string.format("Eggs Stolen: %d | Travel Speed: %d", State.EggsStolen, State.StealSpeed)
+    MMeta.Text = string.format("Eggs: %d | Speed: %d", State.EggsStolen, State.StealSpeed)
 end
 
--- ==================== TAB 1: STEAL ====================
-
-MakeToggle(pSteal, "Auto Steal (Glide)", "Fly smoothly to enemy nests and steal eggs", false, 2, function(v)
+-- ==================== STEAL TAB ====================
+MakeToggle(pSteal, "Auto Steal", "Walk to enemy nests and steal eggs", false, 2, function(v)
     State.AutoSteal = v
     if v then
-        State.Status = "Scanning Nests..."
+        State.Status = "Scanning..."
         UpdateMonitorUI()
         task.spawn(function()
             while State.AutoSteal and State.Running do
                 local ok, err = pcall(function()
                     if IsCarryingEgg() then
-                        State.Status = "Delivering to Base..."
+                        State.Status = "Delivering..."
                         UpdateMonitorUI()
-                        DeliverEggToBase(false)
+                        DeliverEggToBase()
                     else
                         local targets = FindStealableEggs()
                         if #targets > 0 then
@@ -1136,29 +986,25 @@ MakeToggle(pSteal, "Auto Steal (Glide)", "Fly smoothly to enemy nests and steal 
                             State.Status = "Stealing..."
                             State.TargetPlot = target.PlotName
                             UpdateMonitorUI()
-
                             local success = PerformEggSteal(target)
                             if success or IsCarryingEgg() then
                                 State.EggsStolen = State.EggsStolen + 1
-                                State.Status = "Returning Base..."
+                                State.Status = "Returning..."
                                 UpdateMonitorUI()
-                                DeliverEggToBase(false)
+                                DeliverEggToBase()
                                 IgnoredPrompts[target.Prompt] = os.clock() + 15
                             else
                                 IgnoredPrompts[target.Prompt] = os.clock() + 3
                             end
                         else
-                            State.Status = "No Eggs Available"
+                            State.Status = "No Eggs"
                             State.TargetPlot = "None"
                             UpdateMonitorUI()
                         end
                     end
                 end)
-                if not ok then
-                    warn("[Erdeva] AutoSteal loop error:", err)
-                    task.wait(1)
-                end
-                task.wait(0.2)
+                if not ok then warn("[Erdeva] AutoSteal error:", err); task.wait(1) end
+                task.wait(0.3)
             end
             State.Status = "Idle"
             UpdateMonitorUI()
@@ -1169,81 +1015,26 @@ MakeToggle(pSteal, "Auto Steal (Glide)", "Fly smoothly to enemy nests and steal 
     end
 end)
 
-MakeToggle(pSteal, "Instant Steal (Teleport)", "Instantly TP to eggs & claim them", false, 3, function(v)
-    State.InstantSteal = v
-    if v then
-        State.Status = "Scanning (Instant)..."
-        UpdateMonitorUI()
-        task.spawn(function()
-            while State.InstantSteal and State.Running do
-                local ok, err = pcall(function()
-                    if IsCarryingEgg() then
-                        State.Status = "Instant Returning..."
-                        UpdateMonitorUI()
-                        DeliverEggToBase(true)
-                    else
-                        local targets = FindStealableEggs()
-                        if #targets > 0 then
-                            local target = targets[1]
-                            State.Status = "Instant Steal..."
-                            State.TargetPlot = target.PlotName
-                            UpdateMonitorUI()
-
-                            local success = PerformInstantSteal(target)
-                            if success or IsCarryingEgg() then
-                                State.EggsStolen = State.EggsStolen + 1
-                                State.Status = "Instant Delivering..."
-                                UpdateMonitorUI()
-                                DeliverEggToBase(true)
-                                IgnoredPrompts[target.Prompt] = os.clock() + 15
-                            else
-                                IgnoredPrompts[target.Prompt] = os.clock() + 3
-                            end
-                        else
-                            State.Status = "No Eggs Available"
-                            State.TargetPlot = "None"
-                            UpdateMonitorUI()
-                        end
-                    end
-                end)
-                if not ok then
-                    warn("[Erdeva] InstantSteal loop error:", err)
-                    task.wait(1)
-                end
-                task.wait(0.15)
-            end
-            State.Status = "Idle"
-            UpdateMonitorUI()
-        end)
-    else
-        State.Status = "Idle"
-        UpdateMonitorUI()
-    end
-end)
-
-MakeSlider(pSteal, "Steal Glide Speed", 100, 1000, State.StealSpeed, 4, function(v)
+MakeSlider(pSteal, "Walk Speed", 20, 100, State.StealSpeed, 3, function(v)
     State.StealSpeed = v
     UpdateMonitorUI()
 end)
 
-MakeToggle(pSteal, "Egg ESP", "Show tags on stealable eggs in all bases", false, 5, function(v)
+MakeToggle(pSteal, "Egg ESP", "Show tags on stealable eggs", false, 4, function(v)
     State.EggESP = v
     UpdateESP(v)
     if v then
         task.spawn(function()
             while State.EggESP and State.Running do
                 task.wait(3.0)
-                if State.EggESP and State.Running then
-                    pcall(UpdateESP, true)
-                end
+                if State.EggESP and State.Running then pcall(UpdateESP, true) end
             end
         end)
     end
 end)
 
--- ==================== TAB 2: BASE & NEST ====================
-
-MakeToggle(pBase, "Auto Place Stolen Eggs", "Automatically places held eggs in nest", false, 1, function(v)
+-- ==================== BASE TAB ====================
+MakeToggle(pBase, "Auto Place Eggs", "Place held eggs in nest", false, 1, function(v)
     State.AutoPlace = v
     if v then
         task.spawn(function()
@@ -1260,7 +1051,7 @@ MakeToggle(pBase, "Auto Place Stolen Eggs", "Automatically places held eggs in n
     end
 end)
 
-MakeToggle(pBase, "Auto Hatch Ready Eggs", "Automatically hatches ready incubated eggs", false, 2, function(v)
+MakeToggle(pBase, "Auto Hatch", "Hatch ready eggs", false, 2, function(v)
     State.AutoHatch = v
     if v then
         task.spawn(function()
@@ -1274,7 +1065,7 @@ MakeToggle(pBase, "Auto Hatch Ready Eggs", "Automatically hatches ready incubate
     end
 end)
 
-MakeToggle(pBase, "Auto Treadmill Speed Train", "Gains character walkspeed automatically", false, 3, function(v)
+MakeToggle(pBase, "Auto Treadmill", "Gain walkspeed automatically", false, 3, function(v)
     State.AutoTreadmill = v
     if v then
         task.spawn(function()
@@ -1287,9 +1078,8 @@ MakeToggle(pBase, "Auto Treadmill Speed Train", "Gains character walkspeed autom
     end
 end)
 
--- ==================== TAB 3: PETS ====================
-
-MakeToggle(pSatchel, "Auto Sell All Pets", "Continuously sells excess pets for cash", false, 1, function(v)
+-- ==================== PETS TAB ====================
+MakeToggle(pSatchel, "Auto Sell Pets", "Sell excess pets", false, 1, function(v)
     State.AutoSellPets = v
     if v then
         task.spawn(function()
@@ -1303,14 +1093,9 @@ end)
 
 MakeButton(pSatchel, "Sell All Pets Now", 2, function()
     SafeFire(RE_SellEveryPet)
-    StarterGui:SetCore("SendNotification", {
-        Title = "Pets Sold!",
-        Text = "Successfully sold all non-favorited pets!",
-        Duration = 3
-    })
 end)
 
-MakeToggle(pSatchel, "Auto Equip Best Pets", "Equips your strongest pets automatically", false, 3, function(v)
+MakeToggle(pSatchel, "Auto Equip Best", "Equip strongest pets", false, 3, function(v)
     State.AutoEquipBest = v
     if v then
         task.spawn(function()
@@ -1322,9 +1107,8 @@ MakeToggle(pSatchel, "Auto Equip Best Pets", "Equips your strongest pets automat
     end
 end)
 
--- ==================== TAB 4: COMBAT ====================
-
-MakeToggle(pCombat, "Auto Bat Swing", "Automatically hits nearby guards and egg thieves", false, 1, function(v)
+-- ==================== COMBAT TAB ====================
+MakeToggle(pCombat, "Auto Bat Swing", "Hit nearby guards", false, 1, function(v)
     State.AutoBatSwing = v
     if v then
         task.spawn(function()
@@ -1333,57 +1117,26 @@ MakeToggle(pCombat, "Auto Bat Swing", "Automatically hits nearby guards and egg 
                 local char = LP.Character
                 if char then
                     local bat = char:FindFirstChildOfClass("Tool")
-                    if bat then
-                        pcall(function() bat:Activate() end)
-                    end
+                    if bat then pcall(function() bat:Activate() end) end
                 end
-                task.wait(0.25)
+                task.wait(0.3)
             end
         end)
     end
 end)
 
--- ==================== TAB 5: TELEPORT ====================
-
-MakeButton(pTeleport, "Teleport to My Base", 1, function()
-    local cframe = State.MyPlotCFrame or FindMyPlot()
-    State.MyPlotCFrame = cframe
-    if cframe then SafeTP(cframe) end
-end)
-
-MakeButton(pTeleport, "Teleport to Fuse Machine", 2, function()
-    SafeTP(CFrame.new(542, 73, -454))
-end)
-
-MakeButton(pTeleport, "Teleport to Sell Merchant", 3, function()
-    local prompt = Workspace:FindFirstChild("SellAll", true)
-    if prompt and prompt:IsA("BasePart") then
-        SafeTP(prompt.CFrame + Vector3.new(0, 3, 0))
-    else
-        SafeTP(CFrame.new(600, 70, -330))
-    end
-end)
-
-MakeButton(pTeleport, "Teleport to Enchanted Tree", 4, function()
-    local tree = Workspace:FindFirstChild("EnchantedTreeEntrance", true)
-    if tree and tree:IsA("BasePart") then
-        SafeTP(tree.CFrame + Vector3.new(0, 3, 0))
-    end
-end)
-
--- ==================== TAB 6: MOVEMENT ====================
-
-MakeToggle(pMovement, "Hover Fly (Universal)", "Fly freely in all directions", false, 1, function(v)
+-- ==================== MOVEMENT TAB ====================
+MakeToggle(pMovement, "Fly", "Free fly mode", false, 1, function(v)
     ToggleFly(v)
 end)
 
-MakeSlider(pMovement, "Fly Speed", 20, 300, 75, 2, function(v) State.FlySpeed = v end)
-MakeSlider(pMovement, "Walk Speed", 16, 250, 16, 3, function(v)
+MakeSlider(pMovement, "Fly Speed", 20, 200, 75, 2, function(v) State.FlySpeed = v end)
+MakeSlider(pMovement, "Walk Speed", 16, 100, 16, 3, function(v)
     State.WalkSpeed = v
     local hum = GetHum()
     if hum then hum.WalkSpeed = v end
 end)
-MakeSlider(pMovement, "Jump Power", 50, 300, 50, 4, function(v)
+MakeSlider(pMovement, "Jump Power", 50, 150, 50, 4, function(v)
     State.JumpPower = v
     local hum = GetHum()
     if hum then
@@ -1392,31 +1145,33 @@ MakeSlider(pMovement, "Jump Power", 50, 300, 50, 4, function(v)
     end
 end)
 
--- ==================== TAB 7: SYSTEM ====================
-
-MakeButton(pSystem, "Claim All Free Rewards & Gifts", 1, function()
+-- ==================== SYSTEM TAB ====================
+MakeButton(pSystem, "Claim Rewards", 1, function()
     SafeFire(RF_AwayEarnings)
     SafeFire(RF_GroupPerk)
     SafeFire(RF_CodexRedeemAll)
     SafeFire(RF_ClaimQuest)
-    StarterGui:SetCore("SendNotification", {
-        Title = "Rewards Claimed!",
-        Text = "Claimed Away Earnings, Group Perk & Quests!",
-        Duration = 3
-    })
 end)
 
-MakeButton(pSystem, "Rejoin Current Server", 2, function()
+MakeButton(pSystem, "Rejoin Server", 2, function()
     local ts = game:GetService("TeleportService")
-    pcall(function()
-        ts:TeleportToPlaceInstance(game.PlaceId, game.JobId, LP)
-    end)
+    pcall(function() ts:TeleportToPlaceInstance(game.PlaceId, game.JobId, LP) end)
 end)
 
 MakeButton(pSystem, "Destroy GUI", 3, DestroyAll)
 
 StarterGui:SetCore("SendNotification", {
     Title = "Erdeva Hub",
-    Text = "Steal An Egg Script Loaded!",
+    Text = "Safe Steal An Egg Loaded!",
     Duration = 5
 })
+
+-- Warning kalau ada remote yang tidak ketemu
+if #missingRemotes > 0 then
+    task.wait(1)
+    StarterGui:SetCore("SendNotification", {
+        Title = "Warning",
+        Text = #missingRemotes .. " remote tidak ditemukan. Cek console.",
+        Duration = 5
+    })
+end
