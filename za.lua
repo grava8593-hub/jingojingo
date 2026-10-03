@@ -1014,7 +1014,112 @@ Topbar.BackgroundTransparency = 1
 Topbar.Active = true
 Topbar.Parent = Header
 
+local UltraFps = {
+    Enabled = false,
+    Values = {},
+    Connection = nil
+}
+
+local function SaveAndSet(instance, property, value)
+    if not instance or not instance.Parent then return end
+    local saved = UltraFps.Values[instance]
+    if not saved then
+        saved = {}
+        UltraFps.Values[instance] = saved
+    end
+    if saved[property] == nil then
+        local ok, current = pcall(function() return instance[property] end)
+        if ok then saved[property] = current end
+    end
+    pcall(function() instance[property] = value end)
+end
+
+local function KeepUltraFpsVisible(instance)
+    local character = LP.Character
+    if character and instance:IsDescendantOf(character) then return true end
+    if State.PlotObject and instance:IsDescendantOf(State.PlotObject) then return true end
+    if string.find(string.lower(instance.Name), "egg", 1, true) then return true end
+    local volcano = Workspace:FindFirstChild("Volcano")
+    if volcano and instance:IsDescendantOf(volcano) then return true end
+    return instance:IsA("ProximityPrompt") or instance:FindFirstChildWhichIsA("ProximityPrompt", true) ~= nil
+end
+
+local function ApplyUltraFps(instance)
+    local character = LP.Character
+    if not UltraFps.Enabled or not instance or (character and instance:IsDescendantOf(character)) then return end
+
+    if instance:IsA("BasePart") then
+        SaveAndSet(instance, "Material", Enum.Material.SmoothPlastic)
+        SaveAndSet(instance, "CastShadow", false)
+        SaveAndSet(instance, "Reflectance", 0)
+        if not KeepUltraFpsVisible(instance) then
+            SaveAndSet(instance, "LocalTransparencyModifier", 1)
+        end
+    elseif instance:IsA("Decal") or instance:IsA("Texture") then
+        SaveAndSet(instance, "Transparency", 1)
+    elseif instance:IsA("ParticleEmitter")
+        or instance:IsA("Trail")
+        or instance:IsA("Beam")
+        or instance:IsA("Smoke")
+        or instance:IsA("Fire")
+        or instance:IsA("Sparkles")
+        or instance:IsA("Light")
+        or instance:IsA("Highlight")
+        or instance:IsA("BillboardGui")
+        or instance:IsA("SurfaceGui") then
+        SaveAndSet(instance, "Enabled", false)
+    end
+end
+
+local function EnableUltraFps()
+    if UltraFps.Enabled then return end
+    UltraFps.Enabled = true
+
+    local lighting = game:GetService("Lighting")
+    SaveAndSet(lighting, "GlobalShadows", false)
+    SaveAndSet(lighting, "Brightness", 1)
+    SaveAndSet(lighting, "FogEnd", 9e9)
+    SaveAndSet(lighting, "EnvironmentDiffuseScale", 0)
+    SaveAndSet(lighting, "EnvironmentSpecularScale", 0)
+
+    local terrain = Workspace:FindFirstChildOfClass("Terrain")
+    if terrain then
+        SaveAndSet(terrain, "Decoration", false)
+        SaveAndSet(terrain, "WaterWaveSize", 0)
+        SaveAndSet(terrain, "WaterWaveSpeed", 0)
+        SaveAndSet(terrain, "WaterReflectance", 0)
+        SaveAndSet(terrain, "WaterTransparency", 1)
+    end
+
+    for _, instance in ipairs(lighting:GetDescendants()) do
+        if instance:IsA("PostEffect") or instance:IsA("Atmosphere") or instance:IsA("Clouds") then
+            SaveAndSet(instance, "Enabled", false)
+        end
+    end
+    for _, instance in ipairs(Workspace:GetDescendants()) do
+        ApplyUltraFps(instance)
+    end
+    UltraFps.Connection = Workspace.DescendantAdded:Connect(ApplyUltraFps)
+end
+
+local function RestoreUltraFps()
+    UltraFps.Enabled = false
+    if UltraFps.Connection then
+        UltraFps.Connection:Disconnect()
+        UltraFps.Connection = nil
+    end
+    for instance, properties in pairs(UltraFps.Values) do
+        if instance and instance.Parent then
+            for property, value in pairs(properties) do
+                pcall(function() instance[property] = value end)
+            end
+        end
+    end
+    UltraFps.Values = {}
+end
+
 local function DestroyAll()
+    RestoreUltraFps()
     State.Running = false
     State.MasterFarm = false
     State.InstantFarm = false
@@ -2170,182 +2275,16 @@ MakeButton(pSystem, "Rejoin Current Server", 4, function()
 end)
 
 MakeButton(pSystem, "FPS Booster", 5, function()
+    EnableUltraFps()
     pcall(function()
-        local lighting = game:GetService("Lighting")
-        lighting.GlobalShadows = false
-        lighting.FogEnd = 9e9
-        lighting.Brightness = 1
-
-        for _, v in ipairs(lighting:GetChildren()) do
-            if v:IsA("PostEffect") or v:IsA("Atmosphere") or v:IsA("Clouds") then
-                v.Enabled = false
-            end
-        end
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Ultra FPS Mode",
+            Text = "Ultra graphics reduction is active until GUI is closed.",
+            Duration = 3
+        })
     end)
-
-    pcall(function()
-        local terrain = Workspace:FindFirstChildOfClass("Terrain")
-        if terrain then
-            terrain.Decoration = false
-            terrain.WaterWaveSize = 0
-            terrain.WaterWaveSpeed = 0
-            terrain.WaterReflectance = 0
-            terrain.WaterTransparency = 0
-        end
-    end)
-
-    local function HideEntity(model)
-        if not model or model == LP.Character or model:IsDescendantOf(LP.Character) then
-            return
-        end
-
-        pcall(function()
-            for _, obj in ipairs(model:GetDescendants()) do
-                if obj:IsA("BasePart") then
-                    obj.Transparency = 1
-                    obj.CastShadow = false
-                    obj.CanCollide = false
-
-                elseif obj:IsA("Decal") or obj:IsA("Texture") then
-                    obj.Transparency = 1
-
-                elseif obj:IsA("BillboardGui") or obj:IsA("SurfaceGui") or obj:IsA("Highlight") then
-                    obj.Enabled = false
-
-                elseif obj:IsA("ParticleEmitter")
-                    or obj:IsA("Trail")
-                    or obj:IsA("Beam")
-                    or obj:IsA("Smoke")
-                    or obj:IsA("Fire")
-                    or obj:IsA("Sparkles") then
-                    obj.Enabled = false
-
-                elseif obj:IsA("Animator") or obj:IsA("AnimationController") then
-                    for _, track in ipairs(obj:GetPlayingAnimationTracks()) do
-                        track:Stop(0)
-                    end
-                end
-            end
-        end)
-    end
-
-    local NPCNames = {
-        Rick = true,
-        Tim = true,
-        Richie = true,
-        Eggo = true,
-        GirlBacon = true,
-        BoyBacon = true
-    }
-
-    pcall(function()
-        local stalls = Workspace:FindFirstChild("Stalls")
-        if stalls then
-            for _, npcName in ipairs({"Rick", "Tim", "Richie", "Eggo"}) do
-                local npc = stalls:FindFirstChild(npcName, true)
-                if npc then
-                    HideEntity(npc)
-                end
-            end
-        end
-
-        local functionals = Workspace:FindFirstChild("Functionals")
-        if functionals then
-            for _, baconName in ipairs({"GirlBacon", "BoyBacon"}) do
-                local bacon = functionals:FindFirstChild(baconName, true)
-                if bacon then
-                    HideEntity(bacon)
-                end
-            end
-        end
-    end)
-
-    pcall(function()
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= LP and plr.Character then
-                HideEntity(plr.Character)
-            end
-        end
-
-        Players.PlayerAdded:Connect(function(plr)
-            plr.CharacterAdded:Connect(function(char)
-                HideEntity(char)
-            end)
-        end)
-    end)
-
-    pcall(function()
-        for _, v in ipairs(Workspace:GetDescendants()) do
-            if not v:IsDescendantOf(LP.Character) then
-                local isEgg = string.find(string.lower(v.Name), "egg")
-
-                if v:IsA("BasePart") and not isEgg then
-                    v.Material = Enum.Material.SmoothPlastic
-                    v.CastShadow = false
-                    v.Reflectance = 0
-
-                elseif (v:IsA("Decal") or v:IsA("Texture")) and not isEgg then
-                    v.Transparency = 1
-
-                elseif v:IsA("ParticleEmitter")
-                    or v:IsA("Trail")
-                    or v:IsA("Beam")
-                    or v:IsA("Smoke")
-                    or v:IsA("Fire")
-                    or v:IsA("Sparkles") then
-                    v.Enabled = false
-
-                elseif v:IsA("Light") or v:IsA("Highlight") then
-                    v.Enabled = false
-                end
-            end
-        end
-    end)
-
-    Workspace.DescendantAdded:Connect(function(newObj)
-        if newObj:IsDescendantOf(LP.Character) then
-            return
-        end
-
-        pcall(function()
-            local model = newObj:IsA("Model") and newObj
-                or newObj:FindFirstAncestorOfClass("Model")
-
-            if model and NPCNames[model.Name] then
-                HideEntity(model)
-                return
-            end
-
-            if newObj:IsA("ParticleEmitter")
-                or newObj:IsA("Trail")
-                or newObj:IsA("Beam")
-                or newObj:IsA("Smoke")
-                or newObj:IsA("Fire")
-                or newObj:IsA("Sparkles") then
-                newObj.Enabled = false
-
-            elseif newObj:IsA("Light") or newObj:IsA("Highlight") then
-                newObj.Enabled = false
-
-            elseif newObj:IsA("Animator") or newObj:IsA("AnimationController") then
-                for _, track in ipairs(newObj:GetPlayingAnimationTracks()) do
-                    track:Stop(0)
-                end
-
-            elseif newObj:IsA("Decal") or newObj:IsA("Texture") then
-                if not string.find(string.lower(newObj.Name), "egg") then
-                    newObj.Transparency = 1
-                end
-            end
-        end)
-    end)
-
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "FPS Booster",
-        Text = "FPS Booster Active!",
-        Duration = 3
-    })
 end)
+
 
 MakeButton(pSystem, "Destroy GUI", 6, DestroyAll)
 
