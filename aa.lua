@@ -767,7 +767,7 @@ FloatStroke.Parent = FloatBtn
 local Main = Instance.new("Frame")
 Main.Name = "MainFrame"
 Main.AnchorPoint = Vector2.new(0.5, 0.5)
-Main.Size = UDim2.fromOffset(540, 340)
+Main.Size = UDim2.fromOffset(460, 285)
 Main.Position = UDim2.new(0.5, 0, 0.5, 0)
 Main.BackgroundColor3 = Clr.MainBg
 Main.BorderSizePixel = 0
@@ -790,8 +790,8 @@ MainGradient.Rotation = 90
 MainGradient.Parent = Main
 
 local SizeConstraint = Instance.new("UISizeConstraint")
-SizeConstraint.MinSize = Vector2.new(480, 300)
-SizeConstraint.MaxSize = Vector2.new(620, 400)
+SizeConstraint.MinSize = Vector2.new(410, 255)
+SizeConstraint.MaxSize = Vector2.new(520, 330)
 SizeConstraint.Parent = Main
 
 FloatBtn.MouseButton1Click:Connect(function()
@@ -820,7 +820,8 @@ UIS.InputChanged:Connect(function(i)
 end)
 
 local Sidebar = Instance.new("Frame")
-Sidebar.Size = UDim2.new(1, 0, 0, 86)
+Sidebar.Size = UDim2.new(0, 108, 1, -48)
+Sidebar.Position = UDim2.new(1, -114, 0, 42)
 Sidebar.BackgroundColor3 = Clr.Sidebar
 Sidebar.BorderSizePixel = 0
 Sidebar.Parent = Main
@@ -831,43 +832,43 @@ SidebarGradient.Color = ColorSequence.new({
     ColorSequenceKeypoint.new(0, Color3.fromRGB(42, 11, 20)),
     ColorSequenceKeypoint.new(1, Color3.fromRGB(24, 7, 13))
 })
-SidebarGradient.Rotation = 0
+SidebarGradient.Rotation = 90
 SidebarGradient.Parent = Sidebar
 
 local SideBorderLine = Instance.new("Frame")
-SideBorderLine.Size = UDim2.new(1, -20, 0, 1)
-SideBorderLine.Position = UDim2.new(0, 10, 1, -1)
+SideBorderLine.Size = UDim2.new(0, 1, 1, -16)
+SideBorderLine.Position = UDim2.new(0, 0, 0, 8)
 SideBorderLine.BackgroundColor3 = Clr.CardBorder
 SideBorderLine.BorderSizePixel = 0
 SideBorderLine.Parent = Sidebar
 
 local Header = Instance.new("Frame")
-Header.Size = UDim2.new(1, 0, 0, 44)
+Header.Size = UDim2.new(1, -120, 0, 42)
 Header.BackgroundTransparency = 1
-Header.Parent = Sidebar
+Header.Parent = Main
 
 local CustomLogo = Instance.new("ImageLabel")
-CustomLogo.Size = UDim2.fromOffset(28, 28)
-CustomLogo.Position = UDim2.fromOffset(14, 8)
+CustomLogo.Size = UDim2.fromOffset(25, 25)
+CustomLogo.Position = UDim2.fromOffset(12, 8)
 CustomLogo.BackgroundTransparency = 1
 CustomLogo.Image = hubCustomIcon
 CustomLogo.Parent = Header
 Instance.new("UICorner", CustomLogo).CornerRadius = UDim.new(0, 6)
 
 local GameTitle = Instance.new("TextLabel")
-GameTitle.Size = UDim2.new(0, 190, 0, 16)
-GameTitle.Position = UDim2.fromOffset(52, 8)
+GameTitle.Size = UDim2.new(0, 155, 0, 16)
+GameTitle.Position = UDim2.fromOffset(45, 7)
 GameTitle.BackgroundTransparency = 1
 GameTitle.Text = "ERDEVA HUB"
 GameTitle.TextColor3 = Clr.TextMain
 GameTitle.Font = Enum.Font.GothamBold
-GameTitle.TextSize = 12.5
+GameTitle.TextSize = 11.5
 GameTitle.TextXAlignment = Enum.TextXAlignment.Left
 GameTitle.Parent = Header
 
 local SubTitle = Instance.new("TextLabel")
-SubTitle.Size = UDim2.new(0, 190, 0, 14)
-SubTitle.Position = UDim2.fromOffset(52, 23)
+SubTitle.Size = UDim2.new(0, 155, 0, 14)
+SubTitle.Position = UDim2.fromOffset(45, 22)
 SubTitle.BackgroundTransparency = 1
 SubTitle.Text = "Ride A Pet"
 SubTitle.TextColor3 = Clr.RedGlow
@@ -877,34 +878,34 @@ SubTitle.TextXAlignment = Enum.TextXAlignment.Left
 SubTitle.Parent = Header
 
 local TabContainer = Instance.new("ScrollingFrame")
-TabContainer.Size = UDim2.new(1, -22, 0, 34)
-TabContainer.Position = UDim2.fromOffset(11, 48)
+TabContainer.Size = UDim2.new(1, -10, 1, -10)
+TabContainer.Position = UDim2.fromOffset(6, 5)
 TabContainer.BackgroundTransparency = 1
 TabContainer.BorderSizePixel = 0
 TabContainer.ScrollBarThickness = 0
-TabContainer.AutomaticCanvasSize = Enum.AutomaticSize.X
+TabContainer.AutomaticCanvasSize = Enum.AutomaticSize.Y
 TabContainer.CanvasSize = UDim2.new()
 TabContainer.Parent = Sidebar
 
 local TabList = Instance.new("UIListLayout")
 TabList.SortOrder = Enum.SortOrder.LayoutOrder
-TabList.FillDirection = Enum.FillDirection.Horizontal
-TabList.VerticalAlignment = Enum.VerticalAlignment.Center
-TabList.Padding = UDim.new(0, 6)
+TabList.FillDirection = Enum.FillDirection.Vertical
+TabList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+TabList.Padding = UDim.new(0, 4)
 TabList.Parent = TabContainer
 
 local DiscordCard = Instance.new("TextButton")
-DiscordCard.Size = UDim2.fromOffset(132, 26)
-DiscordCard.Position = UDim2.new(1, -142, 0, 9)
-DiscordCard.BackgroundColor3 = Color3.fromRGB(22, 25, 42)
+DiscordCard.Size = UDim2.fromOffset(134, 24)
+DiscordCard.Position = UDim2.new(1, -198, 0, 9)
+DiscordCard.BackgroundColor3 = Color3.fromRGB(62, 16, 29)
 DiscordCard.BorderSizePixel = 0
 DiscordCard.AutoButtonColor = false
 DiscordCard.Text = ""
-DiscordCard.Parent = Sidebar
+DiscordCard.Parent = Main
 Instance.new("UICorner", DiscordCard).CornerRadius = UDim.new(0, 6)
 
 local dStroke = Instance.new("UIStroke")
-dStroke.Color = Color3.fromRGB(65, 80, 160)
+dStroke.Color = Clr.RedAccent
 dStroke.Thickness = 1
 dStroke.Parent = DiscordCard
 
@@ -913,19 +914,19 @@ DiscordIcon.Name = "DiscordIcon"
 DiscordIcon.BackgroundTransparency = 1
 DiscordIcon.BorderSizePixel = 0
 DiscordIcon.Image = discordCustomIcon
-DiscordIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
+DiscordIcon.ImageColor3 = Clr.RedGlow
 DiscordIcon.ImageTransparency = 0
 DiscordIcon.ScaleType = Enum.ScaleType.Fit
-DiscordIcon.Size = UDim2.fromOffset(20, 20)
-DiscordIcon.Position = UDim2.new(0, 5, 0.5, -10)
+DiscordIcon.Size = UDim2.fromOffset(18, 18)
+DiscordIcon.Position = UDim2.new(0, 5, 0.5, -9)
 DiscordIcon.Parent = DiscordCard
 
 local DiscordTitle = Instance.new("TextLabel")
-DiscordTitle.Size = UDim2.new(1, -30, 1, 0)
-DiscordTitle.Position = UDim2.fromOffset(29, 0)
+DiscordTitle.Size = UDim2.new(1, -29, 1, 0)
+DiscordTitle.Position = UDim2.fromOffset(27, 0)
 DiscordTitle.BackgroundTransparency = 1
 DiscordTitle.Text = "discord.gg/fTv3aKA9Ed"
-DiscordTitle.TextColor3 = Color3.fromRGB(210, 220, 255)
+DiscordTitle.TextColor3 = Color3.fromRGB(255, 214, 224)
 DiscordTitle.Font = Enum.Font.GothamMedium
 DiscordTitle.TextSize = 8
 DiscordTitle.TextXAlignment = Enum.TextXAlignment.Left
@@ -955,20 +956,21 @@ DiscordCard.MouseButton1Click:Connect(function()
         DiscordTitle.Text = "discord.gg/fTv3aKA9Ed"
         DiscordTitle.TextColor3 = Color3.fromRGB(210, 220, 255)
         DiscordTitle.Font = Enum.Font.GothamMedium
-        TweenService:Create(DiscordCard, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(22, 25, 42)}):Play()
+        TweenService:Create(DiscordCard, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(62, 16, 29)}):Play()
     end)
 end)
 
 local ContentArea = Instance.new("Frame")
-ContentArea.Size = UDim2.new(1, 0, 1, -88)
-ContentArea.Position = UDim2.fromOffset(0, 88)
+ContentArea.Size = UDim2.new(1, -122, 1, -46)
+ContentArea.Position = UDim2.fromOffset(0, 46)
 ContentArea.BackgroundTransparency = 1
 ContentArea.Parent = Main
 
 local Topbar = Instance.new("Frame")
-Topbar.Size = UDim2.new(1, 0, 0, 30)
+Topbar.Size = UDim2.new(1, 0, 1, 0)
 Topbar.BackgroundTransparency = 1
-Topbar.Parent = ContentArea
+Topbar.Active = true
+Topbar.Parent = Header
 
 local function DestroyAll()
     State.Running = false
@@ -987,27 +989,27 @@ end
 
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.fromOffset(20, 20)
-CloseBtn.Position = UDim2.new(1, -30, 0.5, -10)
+CloseBtn.Position = UDim2.new(1, -30, 0, 11)
 CloseBtn.BackgroundColor3 = Color3.fromRGB(42, 12, 16)
 CloseBtn.Text = "x"
 CloseBtn.TextColor3 = Clr.RedGlow
 CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.TextSize = 10
 CloseBtn.BorderSizePixel = 0
-CloseBtn.Parent = Topbar
+CloseBtn.Parent = Main
 Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 5)
 CloseBtn.MouseButton1Click:Connect(DestroyAll)
 
 local MinMainBtn = Instance.new("TextButton")
 MinMainBtn.Size = UDim2.fromOffset(20, 20)
-MinMainBtn.Position = UDim2.new(1, -56, 0.5, -10)
+MinMainBtn.Position = UDim2.new(1, -56, 0, 11)
 MinMainBtn.BackgroundColor3 = Clr.Card
 MinMainBtn.Text = "-"
 MinMainBtn.TextColor3 = Clr.TextDim
 MinMainBtn.Font = Enum.Font.GothamBold
 MinMainBtn.TextSize = 12
 MinMainBtn.BorderSizePixel = 0
-MinMainBtn.Parent = Topbar
+MinMainBtn.Parent = Main
 Instance.new("UICorner", MinMainBtn).CornerRadius = UDim.new(0, 5)
 MinMainBtn.MouseButton1Click:Connect(function()
     Main.Visible = false
@@ -1037,7 +1039,7 @@ local TabButtons = {}
 
 local function CreateTab(name, assetId, order)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.fromOffset(79, 26)
+    btn.Size = UDim2.new(1, 0, 0, 28)
     btn.Position = UDim2.new()
     btn.BackgroundColor3 = Clr.Card
     btn.BackgroundTransparency = 1
@@ -1048,8 +1050,8 @@ local function CreateTab(name, assetId, order)
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 
     local barIndicator = Instance.new("Frame")
-    barIndicator.Size = UDim2.new(0.52, 0, 0, 2)
-    barIndicator.Position = UDim2.new(0.24, 0, 1, -3)
+    barIndicator.Size = UDim2.new(0, 3, 0, 16)
+    barIndicator.Position = UDim2.new(0, 2, 0.5, -8)
     barIndicator.BackgroundColor3 = Clr.RedAccent
     barIndicator.BorderSizePixel = 0
     barIndicator.Visible = false
@@ -1057,27 +1059,27 @@ local function CreateTab(name, assetId, order)
     Instance.new("UICorner", barIndicator).CornerRadius = UDim.new(1, 0)
 
     local icon = Instance.new("ImageLabel")
-    icon.Size = UDim2.fromOffset(13, 13)
-    icon.Position = UDim2.fromOffset(8, 6.5)
+    icon.Size = UDim2.fromOffset(14, 14)
+    icon.Position = UDim2.fromOffset(9, 7)
     icon.BackgroundTransparency = 1
     icon.Image = "rbxassetid://" .. tostring(assetId)
     icon.ImageColor3 = Clr.TextDim
     icon.Parent = btn
 
     local titleLbl = Instance.new("TextLabel")
-    titleLbl.Size = UDim2.new(1, -27, 1, 0)
-    titleLbl.Position = UDim2.fromOffset(25, 0)
+    titleLbl.Size = UDim2.new(1, -35, 1, 0)
+    titleLbl.Position = UDim2.fromOffset(31, 0)
     titleLbl.BackgroundTransparency = 1
     titleLbl.Text = name
     titleLbl.TextColor3 = Clr.TextDim
     titleLbl.Font = Enum.Font.GothamMedium
-    titleLbl.TextSize = 8.5
+    titleLbl.TextSize = 8
     titleLbl.TextXAlignment = Enum.TextXAlignment.Left
     titleLbl.Parent = btn
 
     local page = Instance.new("ScrollingFrame")
-    page.Size = UDim2.new(1, -20, 1, -42)
-    page.Position = UDim2.fromOffset(10, 34)
+    page.Size = UDim2.new(1, -14, 1, -10)
+    page.Position = UDim2.fromOffset(7, 5)
     page.BackgroundTransparency = 1
     page.BorderSizePixel = 0
     page.ScrollBarThickness = 2.5
