@@ -26,26 +26,37 @@ pcall(function()
     end)
 end)
 
-local iconPath = "ErdevaHubIconV2.png"
+local function CopyClip(txt)
+    pcall(function()
+        if setclipboard then
+            setclipboard(tostring(txt))
+        end
+    end)
+end
 
+local function SendNotif(title, text)
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = title,
+            Text = text,
+            Duration = 4
+        })
+    end)
+    CopyClip(string.format("[%s] %s", title, text))
+end
+
+local iconPath = "ErdevaHubIconV2.png"
 pcall(function()
-    if isfile(iconPath) then
-        delfile(iconPath)
-    end
+    if isfile(iconPath) then delfile(iconPath) end
     writefile(iconPath, game:HttpGet("https://raw.githubusercontent.com/grava8593-hub/icon/main/erdeva.png"))
 end)
-
 local hubCustomIcon = isfile(iconPath) and getcustomasset(iconPath) or "rbxassetid://6031075931"
 
 local discordIconPath = "ErdevaDiscordIcon.png"
-
 pcall(function()
-    if isfile(discordIconPath) then
-        delfile(discordIconPath)
-    end
+    if isfile(discordIconPath) then delfile(discordIconPath) end
     writefile(discordIconPath, game:HttpGet("https://raw.githubusercontent.com/grava8593-hub/icon/main/dcicon.png"))
 end)
-
 local discordCustomIcon = isfile(discordIconPath) and getcustomasset(discordIconPath) or ""
 
 local Remotes = RS:WaitForChild("Remotes", 10)
@@ -133,6 +144,9 @@ local LastEggScan = 0
 local EggScanDelay = 0.8
 local UpdateMonitorUI = function() end
 
+local LastPickupPos = nil
+local LastPickupTime = 0
+
 local State = {
     MasterFarm   = false,
     InstantFarm  = false,
@@ -149,7 +163,7 @@ local State = {
     EggESP       = false,
     Flying       = false,
     FlySpeed     = 75,
-    ReturnSpeed  = 78,
+    ReturnSpeed  = 500,
     WalkSpeed    = 16,
     JumpPower    = 50,
     BaseCFrame   = nil,
@@ -326,35 +340,6 @@ local function SnapToTarget(targetPos)
     task.wait(0.05)
 end
 
-local function GlideToBaseSafe(basePos)
-    local root = GetRoot()
-    local hum = GetHum()
-    if not root then return end
-
-    local startPos = root.Position
-    local targetPos = basePos + Vector3.new(0, 2.5, 0)
-    local dist = (startPos - targetPos).Magnitude
-
-    local speed = math.clamp(State.ReturnSpeed or 78, 50, 82)
-    local totalTime = math.max(dist / speed, 0.5)
-
-    if hum then hum.PlatformStand = true end
-    root.Anchored = true
-
-    local startTime = os.clock()
-    while os.clock() - startTime < totalTime do
-        local alpha = math.clamp((os.clock() - startTime) / totalTime, 0, 1)
-        root.CFrame = CFrame.new(startPos:Lerp(targetPos, alpha))
-        task.wait(0.02)
-    end
-
-    root.CFrame = CFrame.new(targetPos)
-    root.Anchored = false
-    if hum then hum.PlatformStand = false end
-    root.AssemblyLinearVelocity = Vector3.zero
-    task.wait(0.08)
-end
-
 local function TweenRootTo(targetCFrame, speed)
     local root = GetRoot()
     local hum = GetHum()
@@ -372,32 +357,6 @@ local function TweenRootTo(targetCFrame, speed)
     if hum then hum.PlatformStand = false end
     root.AssemblyLinearVelocity = Vector3.zero
     return true
-end
-
-local VolcanoCollisionState = {}
-
-local function SetVolcanoNoClip(enabled)
-    local char = LP.Character
-    if not char then return end
-
-    if enabled then
-        for _, part in ipairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
-                if VolcanoCollisionState[part] == nil then
-                    VolcanoCollisionState[part] = part.CanCollide
-                end
-                part.CanCollide = false
-            end
-        end
-        return
-    end
-
-    for part, canCollide in pairs(VolcanoCollisionState) do
-        if part and part.Parent then
-            part.CanCollide = canCollide
-        end
-    end
-    VolcanoCollisionState = {}
 end
 
 local function EnterVolcano()
@@ -609,20 +568,21 @@ local function CollectEggAtCurrentPosition(egg, timeout, allowObjectGone)
     local startWait = os.clock()
     while os.clock() - startWait < timeout do
         if IsCarryingEgg() or not egg.Object:IsDescendantOf(Workspace) or (egg.Part and egg.Part.Transparency >= 0.9) then
+            LastPickupPos = egg.Part.Position
+            LastPickupTime = os.clock()
             ClickOrActivateEgg()
             return true
         end
         task.wait(0.08)
     end
 
-    return IsCarryingEgg() or (allowObjectGone and not egg.Object:IsDescendantOf(Workspace))
-end
+    if IsCarryingEgg() then
+        LastPickupPos = egg.Part.Position
+        LastPickupTime = os.clock()
+        return true
+    end
 
-local function PerformEggPickup(egg)
-    if not egg or not egg.Part then return false end
-    SnapToTarget(egg.Part.Position)
-    task.wait(0.15)
-    return CollectEggAtCurrentPosition(egg, 0.8)
+    return allowObjectGone and not egg.Object:IsDescendantOf(Workspace)
 end
 
 local function PerformInstantPickup(egg)
@@ -657,25 +617,44 @@ local function PerformVolcanicPickup(egg, instant)
     return success
 end
 
-local function PerformFullDelivery()
+local function DeliverSafelyAtPlot(basePos)
     local root = GetRoot()
     if not root then return end
 
-    State.Status = "Gliding to Base..."
-    UpdateMonitorUI()
+    local dist = 3000
+    if LastPickupPos then
+        dist = math.max((basePos - LastPickupPos).Magnitude, 500)
+    end
 
-    local baseCFrame = State.BaseCFrame or FindMyPlot()
-    local basePos = baseCFrame and baseCFrame.Position or root.Position
+    local safeDuration = math.clamp(dist / 80, 5, 85)
+    local elapsed = os.clock() - (LastPickupTime > 0 and LastPickupTime or (os.clock() - 1))
+    local remaining = safeDuration - elapsed
 
-    GlideToBaseSafe(basePos)
-    task.wait(0.12)
+    root.Anchored = true
+    root.AssemblyLinearVelocity = Vector3.zero
+
+    while remaining > 0 do
+        State.Status = string.format("Plot Wait: %ds", math.ceil(remaining))
+        UpdateMonitorUI()
+        local step = math.min(remaining, 0.5)
+        task.wait(step)
+        remaining = remaining - step
+        root = GetRoot()
+        if root then root.Anchored = true end
+    end
+
+    root = GetRoot()
+    if root then
+        root.Anchored = false
+        root.AssemblyLinearVelocity = Vector3.zero
+    end
 
     State.Status = "Storing & Claiming..."
     UpdateMonitorUI()
 
     if EggArrivalClaimRem then
-        local now = os.time()
-        SafeFire(EggArrivalClaimRem, now, basePos.X, basePos.Y, basePos.Z, {})
+        local safeStart = os.time() - math.ceil(safeDuration)
+        SafeFire(EggArrivalClaimRem, safeStart, basePos.X, basePos.Y, basePos.Z, {})
     end
     task.wait(0.08)
 
@@ -721,11 +700,21 @@ local function PerformFullDelivery()
         end
     end)
 
-    task.wait(0.15)
+    task.wait(0.2)
 end
 
 local function PerformInstantDelivery()
-    PerformFullDelivery()
+    local root = GetRoot()
+    if not root then return end
+
+    local baseCFrame = State.BaseCFrame or FindMyPlot()
+    local basePos = baseCFrame and baseCFrame.Position or root.Position
+
+    root.CFrame = CFrame.new(basePos + Vector3.new(0, 2.5, 0))
+    root.AssemblyLinearVelocity = Vector3.zero
+    task.wait(0.08)
+
+    DeliverSafelyAtPlot(basePos)
 end
 
 local espFolder = nil
@@ -870,11 +859,6 @@ MainGradient.Color = ColorSequence.new({
 MainGradient.Rotation = 90
 MainGradient.Parent = Main
 
-local SizeConstraint = Instance.new("UISizeConstraint")
-SizeConstraint.MinSize = Vector2.new(410, 255)
-SizeConstraint.MaxSize = Vector2.new(520, 330)
-SizeConstraint.Parent = Main
-
 FloatBtn.MouseButton1Click:Connect(function()
     FloatBtn.Visible = false
     Main.Visible = true
@@ -907,21 +891,6 @@ Sidebar.BackgroundColor3 = Clr.Sidebar
 Sidebar.BorderSizePixel = 0
 Sidebar.Parent = Main
 Instance.new("UICorner", Sidebar).CornerRadius = UDim.new(0, 12)
-
-local SidebarGradient = Instance.new("UIGradient")
-SidebarGradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(27, 19, 23)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(17, 14, 17))
-})
-SidebarGradient.Rotation = 90
-SidebarGradient.Parent = Sidebar
-
-local SideBorderLine = Instance.new("Frame")
-SideBorderLine.Size = UDim2.new(0, 1, 1, -16)
-SideBorderLine.Position = UDim2.new(1, -1, 0, 8)
-SideBorderLine.BackgroundColor3 = Clr.CardBorder
-SideBorderLine.BorderSizePixel = 0
-SideBorderLine.Parent = Sidebar
 
 local Header = Instance.new("Frame")
 Header.Size = UDim2.new(1, -120, 0, 42)
@@ -975,72 +944,6 @@ TabList.HorizontalAlignment = Enum.HorizontalAlignment.Center
 TabList.Padding = UDim.new(0, 4)
 TabList.Parent = TabContainer
 
-local DiscordCard = Instance.new("TextButton")
-DiscordCard.Size = UDim2.fromOffset(134, 24)
-DiscordCard.Position = UDim2.new(1, -198, 0, 9)
-DiscordCard.BackgroundColor3 = Color3.fromRGB(32, 22, 27)
-DiscordCard.BorderSizePixel = 0
-DiscordCard.AutoButtonColor = false
-DiscordCard.Text = ""
-DiscordCard.Parent = Main
-Instance.new("UICorner", DiscordCard).CornerRadius = UDim.new(0, 6)
-
-local dStroke = Instance.new("UIStroke")
-dStroke.Color = Clr.RedAccent
-dStroke.Thickness = 1
-dStroke.Parent = DiscordCard
-
-local DiscordIcon = Instance.new("ImageLabel")
-DiscordIcon.Name = "DiscordIcon"
-DiscordIcon.BackgroundTransparency = 1
-DiscordIcon.BorderSizePixel = 0
-DiscordIcon.Image = discordCustomIcon
-DiscordIcon.ImageColor3 = Clr.RedGlow
-DiscordIcon.ImageTransparency = 0
-DiscordIcon.ScaleType = Enum.ScaleType.Fit
-DiscordIcon.Size = UDim2.fromOffset(18, 18)
-DiscordIcon.Position = UDim2.new(0, 5, 0.5, -9)
-DiscordIcon.Parent = DiscordCard
-
-local DiscordTitle = Instance.new("TextLabel")
-DiscordTitle.Size = UDim2.new(1, -29, 1, 0)
-DiscordTitle.Position = UDim2.fromOffset(27, 0)
-DiscordTitle.BackgroundTransparency = 1
-DiscordTitle.Text = "discord.gg/fTv3aKA9Ed"
-DiscordTitle.TextColor3 = Color3.fromRGB(255, 214, 224)
-DiscordTitle.Font = Enum.Font.GothamMedium
-DiscordTitle.TextSize = 8
-DiscordTitle.TextXAlignment = Enum.TextXAlignment.Left
-DiscordTitle.TextTruncate = Enum.TextTruncate.AtEnd
-DiscordTitle.ZIndex = 10
-DiscordTitle.Parent = DiscordCard
-
-local discordInviteURL = "https://discord.gg/fTv3aKA9Ed"
-DiscordCard.MouseButton1Click:Connect(function()
-    if setclipboard then
-        setclipboard(discordInviteURL)
-    end
-    DiscordTitle.Text = "Copied to Clipboard!"
-    DiscordTitle.TextColor3 = Color3.fromRGB(120, 245, 160)
-    DiscordTitle.Font = Enum.Font.GothamBold
-    TweenService:Create(DiscordCard, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(30, 48, 40)}):Play()
-
-    pcall(function()
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "ERDEVA HUB!",
-            Text = "Discord link copied to clipboard successfully!",
-            Duration = 4
-        })
-    end)
-
-    task.delay(1.5, function()
-        DiscordTitle.Text = "discord.gg/fTv3aKA9Ed"
-        DiscordTitle.TextColor3 = Color3.fromRGB(210, 220, 255)
-        DiscordTitle.Font = Enum.Font.GothamMedium
-        TweenService:Create(DiscordCard, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(32, 22, 27)}):Play()
-    end)
-end)
-
 local ContentArea = Instance.new("Frame")
 ContentArea.Size = UDim2.new(1, -122, 1, -46)
 ContentArea.Position = UDim2.fromOffset(116, 46)
@@ -1053,127 +956,7 @@ Topbar.BackgroundTransparency = 1
 Topbar.Active = true
 Topbar.Parent = Header
 
-local UltraFps = {
-    Enabled = false,
-    Values = {},
-    Connection = nil
-}
-
-local function SaveAndSet(instance, property, value)
-    if not instance or not instance.Parent then return end
-    local saved = UltraFps.Values[instance]
-    if not saved then
-        saved = {}
-        UltraFps.Values[instance] = saved
-    end
-    if saved[property] == nil then
-        local ok, current = pcall(function() return instance[property] end)
-        if ok then saved[property] = current end
-    end
-    pcall(function() instance[property] = value end)
-end
-
-local function KeepUltraFpsVisible(instance)
-    local character = LP.Character
-    if character and instance:IsDescendantOf(character) then return true end
-    if State.PlotObject and instance:IsDescendantOf(State.PlotObject) then return true end
-    if string.find(string.lower(instance.Name), "egg", 1, true) then return true end
-    local volcano = Workspace:FindFirstChild("Volcano")
-    if volcano and instance:IsDescendantOf(volcano) then return true end
-    return instance:IsA("ProximityPrompt") or instance:FindFirstChildWhichIsA("ProximityPrompt", true) ~= nil
-end
-
-local function IsUltraFpsGround(instance)
-    if not instance:IsA("BasePart") then return false end
-    local name = string.lower(instance.Name)
-    if string.find(name, "ground", 1, true)
-        or string.find(name, "floor", 1, true)
-        or string.find(name, "terrain", 1, true)
-        or string.find(name, "land", 1, true)
-        or string.find(name, "baseplate", 1, true)
-        or string.find(name, "road", 1, true)
-        or string.find(name, "path", 1, true) then
-        return true
-    end
-    return instance.Size.X * instance.Size.Z >= 400 and instance.Size.Y <= 20
-end
-
-local function ApplyUltraFps(instance)
-    local character = LP.Character
-    if not UltraFps.Enabled or not instance or (character and instance:IsDescendantOf(character)) then return end
-
-    if instance:IsA("BasePart") then
-        SaveAndSet(instance, "Material", Enum.Material.SmoothPlastic)
-        SaveAndSet(instance, "CastShadow", false)
-        SaveAndSet(instance, "Reflectance", 0)
-        if not KeepUltraFpsVisible(instance) and not IsUltraFpsGround(instance) then
-            SaveAndSet(instance, "LocalTransparencyModifier", 1)
-        end
-    elseif instance:IsA("Decal") or instance:IsA("Texture") then
-        SaveAndSet(instance, "Transparency", 1)
-    elseif instance:IsA("ParticleEmitter")
-        or instance:IsA("Trail")
-        or instance:IsA("Beam")
-        or instance:IsA("Smoke")
-        or instance:IsA("Fire")
-        or instance:IsA("Sparkles")
-        or instance:IsA("Light")
-        or instance:IsA("Highlight")
-        or instance:IsA("BillboardGui")
-        or instance:IsA("SurfaceGui") then
-        SaveAndSet(instance, "Enabled", false)
-    end
-end
-
-local function EnableUltraFps()
-    if UltraFps.Enabled then return end
-    UltraFps.Enabled = true
-
-    local lighting = game:GetService("Lighting")
-    SaveAndSet(lighting, "GlobalShadows", false)
-    SaveAndSet(lighting, "Brightness", 1)
-    SaveAndSet(lighting, "FogEnd", 9e9)
-    SaveAndSet(lighting, "EnvironmentDiffuseScale", 0)
-    SaveAndSet(lighting, "EnvironmentSpecularScale", 0)
-
-    local terrain = Workspace:FindFirstChildOfClass("Terrain")
-    if terrain then
-        SaveAndSet(terrain, "Decoration", false)
-        SaveAndSet(terrain, "WaterWaveSize", 0)
-        SaveAndSet(terrain, "WaterWaveSpeed", 0)
-        SaveAndSet(terrain, "WaterReflectance", 0)
-        SaveAndSet(terrain, "WaterTransparency", 1)
-    end
-
-    for _, instance in ipairs(lighting:GetDescendants()) do
-        if instance:IsA("PostEffect") or instance:IsA("Atmosphere") or instance:IsA("Clouds") then
-            SaveAndSet(instance, "Enabled", false)
-        end
-    end
-    for _, instance in ipairs(Workspace:GetDescendants()) do
-        ApplyUltraFps(instance)
-    end
-    UltraFps.Connection = Workspace.DescendantAdded:Connect(ApplyUltraFps)
-end
-
-local function RestoreUltraFps()
-    UltraFps.Enabled = false
-    if UltraFps.Connection then
-        UltraFps.Connection:Disconnect()
-        UltraFps.Connection = nil
-    end
-    for instance, properties in pairs(UltraFps.Values) do
-        if instance and instance.Parent then
-            for property, value in pairs(properties) do
-                pcall(function() instance[property] = value end)
-            end
-        end
-    end
-    UltraFps.Values = {}
-end
-
 local function DestroyAll()
-    RestoreUltraFps()
     State.Running = false
     State.MasterFarm = false
     State.InstantFarm = false
@@ -1383,111 +1166,7 @@ local function MakeToggle(parent, title, desc, default, order, callback)
     return card
 end
 
-local function MakeButton(parent, text, order, callback)
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.new(1, 0, 0, 32)
-    b.BackgroundColor3 = Color3.fromRGB(35, 25, 29)
-    b.BorderSizePixel = 0
-    b.Text = text
-    b.TextColor3 = Clr.TextMain
-    b.Font = Enum.Font.GothamBold
-    b.TextSize = 10
-    b.LayoutOrder = order or 0
-    b.Parent = parent
-    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 7)
-    local s = Instance.new("UIStroke")
-    s.Color = Clr.CardBorder
-    s.Thickness = 1
-    s.Transparency = 0.4
-    s.Parent = b
-    b.MouseButton1Click:Connect(function()
-        TweenService:Create(b, TweenInfo.new(0.08), {BackgroundColor3 = Clr.RedDark}):Play()
-        task.delay(0.1, function()
-            TweenService:Create(b, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(35, 25, 29)}):Play()
-        end)
-        callback()
-    end)
-    return b
-end
-
-local function MakeSlider(parent, title, minVal, maxVal, curVal, order, callback)
-    local f = Instance.new("Frame")
-    f.Size = UDim2.new(1, 0, 0, 44)
-    f.BackgroundColor3 = Clr.Card
-    f.BorderSizePixel = 0
-    f.LayoutOrder = order or 0
-    f.Parent = parent
-    Instance.new("UICorner", f).CornerRadius = UDim.new(0, 7)
-    local str = Instance.new("UIStroke")
-    str.Color = Clr.CardBorder
-    str.Thickness = 1
-    str.Transparency = 0.38
-    str.Parent = f
-    local tl = Instance.new("TextLabel")
-    tl.Size = UDim2.new(0.65, 0, 0, 14)
-    tl.Position = UDim2.fromOffset(10, 6)
-    tl.BackgroundTransparency = 1
-    tl.Text = title
-    tl.TextColor3 = Clr.TextMain
-    tl.Font = Enum.Font.GothamBold
-    tl.TextSize = 10
-    tl.TextXAlignment = Enum.TextXAlignment.Left
-    tl.Parent = f
-    local valBadge = Instance.new("TextLabel")
-    valBadge.Size = UDim2.fromOffset(45, 14)
-    valBadge.Position = UDim2.new(1, -55, 0, 6)
-    valBadge.BackgroundColor3 = Color3.fromRGB(43, 24, 31)
-    valBadge.Text = tostring(curVal)
-    valBadge.TextColor3 = Clr.RedGlow
-    valBadge.Font = Enum.Font.GothamBold
-    valBadge.TextSize = 9.5
-    valBadge.BorderSizePixel = 0
-    valBadge.Parent = f
-    Instance.new("UICorner", valBadge).CornerRadius = UDim.new(0, 4)
-    local bar = Instance.new("Frame")
-    bar.Size = UDim2.new(1, -20, 0, 4)
-    bar.Position = UDim2.fromOffset(10, 28)
-    bar.BackgroundColor3 = Color3.fromRGB(45, 36, 40)
-    bar.BorderSizePixel = 0
-    bar.Parent = f
-    Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
-    local fill = Instance.new("Frame")
-    local ratio = math.clamp((curVal - minVal) / (maxVal - minVal), 0, 1)
-    fill.Size = UDim2.new(ratio, 0, 1, 0)
-    fill.BackgroundColor3 = Clr.RedAccent
-    fill.BorderSizePixel = 0
-    fill.Parent = bar
-    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
-    local sliding = false
-    local hit = Instance.new("TextButton")
-    hit.Size = UDim2.new(1, 0, 3, 0)
-    hit.Position = UDim2.new(0, 0, -1, 0)
-    hit.BackgroundTransparency = 1
-    hit.Text = ""
-    hit.Parent = bar
-    hit.InputBegan:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-            sliding = true
-        end
-    end)
-    hit.InputEnded:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-            sliding = false
-        end
-    end)
-    UIS.InputChanged:Connect(function(i)
-        if sliding and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
-            local rel = math.clamp((i.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
-            local val = math.floor(minVal + (maxVal - minVal) * rel)
-            fill.Size = UDim2.new(rel, 0, 1, 0)
-            valBadge.Text = tostring(val)
-            callback(val)
-        end
-    end)
-end
-
 local ModalOverlay = Instance.new("Frame")
-ModalOverlay.Name = "EggFilterModalOverlay"
 ModalOverlay.Size = UDim2.new(1, 0, 1, 0)
 ModalOverlay.BackgroundColor3 = Color3.fromRGB(8, 8, 10)
 ModalOverlay.BackgroundTransparency = 0.4
@@ -1774,7 +1453,7 @@ local MMeta = Instance.new("TextLabel")
 MMeta.Size = UDim2.new(1, -20, 0, 14)
 MMeta.Position = UDim2.fromOffset(10, 44)
 MMeta.BackgroundTransparency = 1
-MMeta.Text = "Harvested: 0 | Engine: Safe Delivery"
+MMeta.Text = "Harvested: 0 | Engine: Instant Catch (Safe Wait)"
 MMeta.TextColor3 = Clr.RedGlow
 MMeta.Font = Enum.Font.Gotham
 MMeta.TextSize = 9
@@ -1785,16 +1464,16 @@ UpdateMonitorUI = function()
     MStatus.Text = "Status: " .. State.Status
     if State.Status == "Farming" or string.find(State.Status, "Taking") then
         MStatus.TextColor3 = Color3.fromRGB(255, 185, 80)
-    elseif string.find(State.Status, "Base") or string.find(State.Status, "Claim") or string.find(State.Status, "Storing") then
+    elseif string.find(State.Status, "Base") or string.find(State.Status, "Wait") or string.find(State.Status, "Storing") then
         MStatus.TextColor3 = Color3.fromRGB(100, 210, 255)
     else
         MStatus.TextColor3 = Color3.fromRGB(130, 240, 160)
     end
     MTarget.Text = "Target: " .. State.TargetName .. " [" .. State.TargetRarity .. "]"
-    MMeta.Text = string.format("Harvested: %d | Return Spd: %d", State.EggCount, State.ReturnSpeed)
+    MMeta.Text = string.format("Harvested: %d | Status: %s", State.EggCount, State.Status)
 end
 
-local function StartHarvestLoop()
+local function StartFarmLoop()
     if not State.BaseCFrame then
         State.BaseCFrame = FindMyPlot()
     end
@@ -1811,15 +1490,15 @@ local function StartHarvestLoop()
                 deliveryAttempts = deliveryAttempts + 1
                 State.Status = "Delivering Held Egg..."
                 UpdateMonitorUI()
-                PerformFullDelivery()
-                task.wait(0.15)
+                PerformInstantDelivery()
+                task.wait(0.1)
 
                 if deliveryAttempts >= 2 then
                     ClickOrActivateEgg()
                     local hum = GetHum()
                     if hum then hum:UnequipTools() end
                     deliveryAttempts = 0
-                    task.wait(0.2)
+                    task.wait(0.15)
                 end
             else
                 deliveryAttempts = 0
@@ -1839,26 +1518,21 @@ local function StartHarvestLoop()
                         or PerformInstantPickup(egg)
 
                     if success or IsCarryingEgg() then
-                        State.Status = "Gliding to Base..."
+                        State.Status = "Teleport to Plot..."
                         UpdateMonitorUI()
 
-                        PerformFullDelivery()
+                        PerformInstantDelivery()
 
                         State.EggCount = State.EggCount + 1
+                        SendNotif("SUKSES PANEN", string.format("Berhasil panen telur %s! Total: %d", egg.Name, State.EggCount))
                         IgnoredEggs[egg.Object] = os.clock() + 30
                         if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 30 end
                     else
-                        State.Status = "Missed, Next..."
-                        UpdateMonitorUI()
                         IgnoredEggs[egg.Object] = os.clock() + 4
                         if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 4 end
                     end
 
-                    State.Status = "Searching Next..."
-                    State.TargetName = "None"
-                    State.TargetRarity = "None"
-                    UpdateMonitorUI()
-                    task.wait(0.15)
+                    task.wait(0.1)
                 else
                     State.Status = "Scanning Eggs..."
                     State.TargetName = "None"
@@ -1867,7 +1541,7 @@ local function StartHarvestLoop()
                 end
             end
         end
-        task.wait(0.5)
+        task.wait(0.4)
     end
     State.Status = "Idle"
     State.TargetName = "None"
@@ -1875,13 +1549,13 @@ local function StartHarvestLoop()
     UpdateMonitorUI()
 end
 
-MakeToggle(pHarvest, "Auto Farm", "Collect selected eggs & deliver to base", false, 2, function(v)
+MakeToggle(pHarvest, "Auto Farm", "Instant catch & smart plot delivery", false, 2, function(v)
     State.MasterFarm = v
     if v then
         State.InstantFarm = false
         State.Status = "Searching..."
         UpdateMonitorUI()
-        task.spawn(StartHarvestLoop)
+        task.spawn(StartFarmLoop)
     else
         State.Status = "Idle"
         State.TargetName = "None"
@@ -1890,13 +1564,13 @@ MakeToggle(pHarvest, "Auto Farm", "Collect selected eggs & deliver to base", fal
     end
 end)
 
-MakeToggle(pHarvest, "Instant Farm", "Fast pickup & safe glide to base", false, 3, function(v)
+MakeToggle(pHarvest, "Instant Farm", "Instant catch & smart plot delivery", false, 3, function(v)
     State.InstantFarm = v
     if v then
         State.MasterFarm = false
-        State.Status = "Searching (Fast)..."
+        State.Status = "Searching..."
         UpdateMonitorUI()
-        task.spawn(StartHarvestLoop)
+        task.spawn(StartFarmLoop)
     else
         State.Status = "Idle"
         State.TargetName = "None"
@@ -1923,11 +1597,6 @@ rStroke.Thickness = 1
 rStroke.Transparency = 0.4
 rStroke.Parent = BtnEggTrigger
 BtnEggTrigger.MouseButton1Click:Connect(function() ModalOverlay.Visible = true end)
-
-MakeSlider(pHarvest, "Speed", 50, 600, State.ReturnSpeed, 5, function(v)
-    State.ReturnSpeed = math.clamp(v, 50, 82)
-    UpdateMonitorUI()
-end)
 
 MakeToggle(pSanctuary, "Auto Deploy All Eggs", "Automatically plants eggs", false, 1, function(v)
     State.AutoDeploy = v
@@ -2147,11 +1816,6 @@ AvatarImg.BorderSizePixel = 0
 AvatarImg.Parent = ProfileCard
 Instance.new("UICorner", AvatarImg).CornerRadius = UDim.new(1, 0)
 
-local aStroke = Instance.new("UIStroke")
-aStroke.Color = Clr.RedGlow
-aStroke.Thickness = 1.5
-aStroke.Parent = AvatarImg
-
 local DisplayNameLbl = Instance.new("TextLabel")
 DisplayNameLbl.Size = UDim2.new(1, -70, 0, 16)
 DisplayNameLbl.Position = UDim2.fromOffset(64, 8)
@@ -2186,54 +1850,6 @@ UserMetaLbl.TextSize = 8.5
 UserMetaLbl.TextXAlignment = Enum.TextXAlignment.Left
 UserMetaLbl.Parent = ProfileCard
 
-local StatsCard = Instance.new("Frame")
-StatsCard.Size = UDim2.new(1, 0, 0, 36)
-StatsCard.BackgroundColor3 = Clr.Card
-StatsCard.BorderSizePixel = 0
-StatsCard.LayoutOrder = 2
-StatsCard.Parent = pSystem
-Instance.new("UICorner", StatsCard).CornerRadius = UDim.new(0, 7)
-
-local sStroke = Instance.new("UIStroke")
-sStroke.Color = Clr.CardBorder
-sStroke.Thickness = 1
-sStroke.Transparency = 0.38
-sStroke.Parent = StatsCard
-
-local LiveStatsLbl = Instance.new("TextLabel")
-LiveStatsLbl.Size = UDim2.new(1, -20, 1, 0)
-LiveStatsLbl.Position = UDim2.fromOffset(10, 0)
-LiveStatsLbl.BackgroundTransparency = 1
-LiveStatsLbl.Text = "FPS: Scanning...  |  Ping: ...ms  |  Server: OK"
-LiveStatsLbl.TextColor3 = Color3.fromRGB(130, 240, 160)
-LiveStatsLbl.Font = Enum.Font.GothamMedium
-LiveStatsLbl.TextSize = 9.5
-LiveStatsLbl.TextXAlignment = Enum.TextXAlignment.Left
-LiveStatsLbl.Parent = StatsCard
-
-task.spawn(function()
-    local lastTime = os.clock()
-    local frameCount = 0
-    local fps = 60
-    RunService.RenderStepped:Connect(function()
-        frameCount = frameCount + 1
-        local curTime = os.clock()
-        if curTime - lastTime >= 1 then
-            fps = frameCount
-            frameCount = 0
-            lastTime = curTime
-            if State.Running and LiveStatsLbl and LiveStatsLbl.Parent then
-                local ping = "0"
-                pcall(function()
-                    local statsItem = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]
-                    if statsItem then ping = string.split(statsItem:GetValueString(), " ")[1] end
-                end)
-                LiveStatsLbl.Text = string.format("FPS: %d  |  Ping: %s ms  |  Job: %s", fps, ping, string.sub(game.JobId, 1, 8))
-            end
-        end
-    end)
-end)
-
 MakeButton(pSystem, "Claim Free Server Gifts", 3, function()
     if ReusableRemotes then
         local cg = ReusableRemotes:FindFirstChild("ClaimGroupReward")
@@ -2251,32 +1867,6 @@ MakeButton(pSystem, "Claim Free Server Gifts", 3, function()
     end
 end)
 
-MakeButton(pSystem, "Rejoin Current Server", 4, function()
-    local ts = game:GetService("TeleportService")
-    if #Players:GetPlayers() <= 1 then
-        LP:Kick("\nYour Account has been banned by ERDEVA!")
-        task.wait(0.2)
-        ts:Teleport(game.PlaceId, LP)
-    else
-        ts:TeleportToPlaceInstance(game.PlaceId, game.JobId, LP)
-    end
-end)
-
-MakeButton(pSystem, "FPS Booster", 5, function()
-    EnableUltraFps()
-    pcall(function()
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "ERDEVA HUB",
-            Text = "FPS Booster Active!.",
-            Duration = 3
-        })
-    end)
-end)
-
 MakeButton(pSystem, "Destroy GUI", 6, DestroyAll)
 
-game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "Erdeva Hub",
-    Text = "Script Loaded!",
-    Duration = 6
-})
+SendNotif("ERDEVA HUB", "Script Siap! Opsi 3 (Instant Catch + Smart Plot Wait) Aktif!")
