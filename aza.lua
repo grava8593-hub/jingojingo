@@ -332,14 +332,6 @@ local function GetEggUUID(eggObj)
     return nil
 end
 
-local function SnapToTarget(targetPos)
-    local root = GetRoot()
-    if not root then return end
-    root.CFrame = CFrame.new(targetPos + Vector3.new(0, 2.5, 0))
-    root.AssemblyLinearVelocity = Vector3.zero
-    task.wait(0.05)
-end
-
 local function TweenRootTo(targetCFrame, speed)
     local root = GetRoot()
     local hum = GetHum()
@@ -591,9 +583,9 @@ local function PerformInstantPickup(egg)
 
     root.CFrame = CFrame.new(egg.Part.Position + Vector3.new(0, 2.5, 0))
     root.AssemblyLinearVelocity = Vector3.zero
-    task.wait(0.08)
+    task.wait(0.12)
 
-    if CollectEggAtCurrentPosition(egg, 0.8, true) then
+    if CollectEggAtCurrentPosition(egg, 1.0, true) then
         return true
     end
 
@@ -601,8 +593,8 @@ local function PerformInstantPickup(egg)
     if not root or not egg.Part or not egg.Part.Parent then return false end
     root.CFrame = CFrame.new(egg.Part.Position + Vector3.new(0, 2.5, 0))
     root.AssemblyLinearVelocity = Vector3.zero
-    task.wait(0.1)
-    return CollectEggAtCurrentPosition(egg, 0.8, true)
+    task.wait(0.15)
+    return CollectEggAtCurrentPosition(egg, 1.0, true)
 end
 
 local function PerformVolcanicPickup(egg, instant)
@@ -621,12 +613,12 @@ local function DeliverSafelyAtPlot(basePos)
     local root = GetRoot()
     if not root then return end
 
-    local dist = 3000
+    local dist = 3500
     if LastPickupPos then
-        dist = math.max((basePos - LastPickupPos).Magnitude, 500)
+        dist = math.max((basePos - LastPickupPos).Magnitude, 600)
     end
 
-    local safeDuration = math.clamp(dist / 80, 5, 85)
+    local safeDuration = math.clamp(dist / 80, 5, 80)
     local elapsed = os.clock() - (LastPickupTime > 0 and LastPickupTime or (os.clock() - 1))
     local remaining = safeDuration - elapsed
 
@@ -700,7 +692,7 @@ local function DeliverSafelyAtPlot(basePos)
         end
     end)
 
-    task.wait(0.2)
+    task.wait(0.5)
 end
 
 local function PerformInstantDelivery()
@@ -1453,7 +1445,7 @@ local MMeta = Instance.new("TextLabel")
 MMeta.Size = UDim2.new(1, -20, 0, 14)
 MMeta.Position = UDim2.fromOffset(10, 44)
 MMeta.BackgroundTransparency = 1
-MMeta.Text = "Harvested: 0 | Engine: Instant Catch (Safe Wait)"
+MMeta.Text = "Harvested: 0 | Engine: Instant Catch"
 MMeta.TextColor3 = Clr.RedGlow
 MMeta.Font = Enum.Font.Gotham
 MMeta.TextSize = 9
@@ -1869,4 +1861,4 @@ end)
 
 MakeButton(pSystem, "Destroy GUI", 6, DestroyAll)
 
-SendNotif("ERDEVA HUB", "Script Siap! Opsi 3 (Instant Catch + Smart Plot Wait) Aktif!")
+SendNotif("ERDEVA HUB", "Script Siap! Opsi 3 (Satu Script Mandiri) Aktif!")
