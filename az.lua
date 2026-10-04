@@ -70,8 +70,6 @@ local EggPlacedRemote     = GameRemotes and GameRemotes:FindFirstChild("EggPlace
 local RequestPlotEggsRem  = GameRemotes and GameRemotes:FindFirstChild("RequestPlotEggs")
 local BasketDropRemote    = GameRemotes and GameRemotes:FindFirstChild("BasketDrop")
 local EggBrokeRemote      = GameRemotes and GameRemotes:FindFirstChild("EggBroke")
-local TeleportToPlotRem   = GameRemotes and GameRemotes:FindFirstChild("TeleportToPlot")
-local EggTimerPauseRem    = GameRemotes and GameRemotes:FindFirstChild("EggTimerPause")
 
 pcall(function()
     local oldNamecall
@@ -216,7 +214,7 @@ local function ClickOrActivateEgg()
     if not char then return end
 
     for _, tool in ipairs(char:GetChildren()) do
-        if tool:IsA("Tool") and string.find(string.lower(tool.Name), "egg") then
+        if tool:IsA("Tool") then
             pcall(function() tool:Activate() end)
         end
     end
@@ -569,7 +567,7 @@ local function FindEggsInMap()
     return list
 end
 
-local function CollectEggAtCurrentPosition(egg, timeout)
+local function CollectEggAtCurrentPosition(egg, timeout, allowObjectGone)
     local root = GetRoot()
     if not root or not egg or not egg.Part then return false end
 
@@ -582,56 +580,59 @@ local function CollectEggAtCurrentPosition(egg, timeout)
     if firetouchinterest and root and egg.Part then
         pcall(function()
             firetouchinterest(root, egg.Part, 0)
-            task.wait(0.05)
             firetouchinterest(root, egg.Part, 1)
         end)
     end
 
     local uuid = egg.UUID or GetEggUUID(egg.Object)
     if EggPickupRemote then
-        if uuid then SafeFire(EggPickupRemote, uuid) end
-        SafeFire(EggPickupRemote, egg.Object)
-        SafeFire(EggPickupRemote, egg.Part)
+        if uuid then
+            SafeFire(EggPickupRemote, uuid)
+        else
+            SafeFire(EggPickupRemote, egg.Object)
+            SafeFire(EggPickupRemote, egg.Part)
+        end
     end
 
     ClickOrActivateEgg()
 
     local startWait = os.clock()
     while os.clock() - startWait < timeout do
-        if IsCarryingEgg() then
+        if IsCarryingEgg() or not egg.Object:IsDescendantOf(Workspace) or (egg.Part and egg.Part.Transparency >= 0.9) then
+            ClickOrActivateEgg()
             return true
         end
-        task.wait(0.08)
+        task.wait(0.1)
     end
 
-    return IsCarryingEgg()
+    return IsCarryingEgg() or (allowObjectGone and not egg.Object:IsDescendantOf(Workspace))
 end
 
 local function PerformEggPickup(egg)
     if not egg or not egg.Part then return false end
     SnapToTarget(egg.Part.Position)
-    task.wait(0.3)
-    return CollectEggAtCurrentPosition(egg, 1.2)
+    task.wait(0.4)
+    return CollectEggAtCurrentPosition(egg, 1.0)
 end
 
 local function PerformInstantPickup(egg)
     local root = GetRoot()
     if not root or not egg or not egg.Part then return false end
 
-    root.CFrame = CFrame.new(egg.Part.Position + Vector3.new(0, 1.5, 0))
+    root.CFrame = CFrame.new(egg.Part.Position + Vector3.new(0, 2.5, 0))
     root.AssemblyLinearVelocity = Vector3.zero
-    task.wait(0.15)
+    task.wait(0.08)
 
-    if CollectEggAtCurrentPosition(egg, 1.0) then
+    if CollectEggAtCurrentPosition(egg, 0.8, true) then
         return true
     end
 
     root = GetRoot()
     if not root or not egg.Part or not egg.Part.Parent then return false end
-    root.CFrame = CFrame.new(egg.Part.Position + Vector3.new(0, 1.5, 0))
+    root.CFrame = CFrame.new(egg.Part.Position + Vector3.new(0, 2.5, 0))
     root.AssemblyLinearVelocity = Vector3.zero
-    task.wait(0.15)
-    return CollectEggAtCurrentPosition(egg, 1.0)
+    task.wait(0.12)
+    return CollectEggAtCurrentPosition(egg, 0.8, true)
 end
 
 local function PerformVolcanicPickup(egg, instant)
@@ -709,21 +710,13 @@ end
 
 local function PerformInstantDelivery()
     local root = GetRoot()
-    if not root then return false end
+    if not root then return end
 
     local baseCFrame = State.BaseCFrame or FindMyPlot()
     local basePos = baseCFrame and baseCFrame.Position or root.Position
 
-    if EggTimerPauseRem then
-        SafeFire(EggTimerPauseRem, true)
-    end
-    if TeleportToPlotRem then
-        SafeFire(TeleportToPlotRem)
-    end
-
-    root.CFrame = CFrame.new(basePos + Vector3.new(0, 1.5, 0))
+    root.CFrame = CFrame.new(basePos + Vector3.new(0, 2.5, 0))
     root.AssemblyLinearVelocity = Vector3.zero
-    task.wait(0.15)
 
     State.Status = "Storing & Claiming..."
     UpdateMonitorUI()
@@ -764,7 +757,7 @@ local function PerformInstantDelivery()
     end
 
     ClickOrActivateEgg()
-    task.wait(0.08)
+    task.wait(0.05)
 
     local hum = GetHum()
     if hum then
@@ -783,16 +776,6 @@ local function PerformInstantDelivery()
             end
         end
     end)
-
-    local startWait = os.clock()
-    while os.clock() - startWait < 1.0 do
-        if not IsCarryingEgg() then
-            return true
-        end
-        task.wait(0.1)
-    end
-
-    return not IsCarryingEgg()
 end
 
 local espFolder = nil
@@ -1704,7 +1687,7 @@ MakeToggle(pHarvest, "Auto Farm", "Collect selected eggs & deliver to base", fal
                                 and PerformVolcanicPickup(egg, false)
                                 or PerformEggPickup(egg)
 
-                            if success and IsCarryingEgg() then
+                            if success or IsCarryingEgg() then
                                 State.Status = "Delivering to Base..."
                                 UpdateMonitorUI()
 
@@ -1771,20 +1754,16 @@ MakeToggle(pHarvest, "Instant Farm", "Instantly teleport to eggs and collect the
                         deliveryAttempts = deliveryAttempts + 1
                         State.Status = "Instant Storing..."
                         UpdateMonitorUI()
-                        local ok = PerformInstantDelivery()
-                        if ok then
-                            State.EggCount = State.EggCount + 1
-                            SendNotif("PANEN SUKSES", string.format("Panen telur berhasil disimpan! Total: %d", State.EggCount))
+                        PerformInstantDelivery()
+                        task.wait(0.1)
+
+                        if deliveryAttempts >= 2 then
+                            ClickOrActivateEgg()
+                            local hum = GetHum()
+                            if hum then hum:UnequipTools() end
                             deliveryAttempts = 0
-                        else
-                            if deliveryAttempts >= 3 then
-                                ClickOrActivateEgg()
-                                local hum = GetHum()
-                                if hum then hum:UnequipTools() end
-                                deliveryAttempts = 0
-                            end
+                            task.wait(0.15)
                         end
-                        task.wait(0.2)
                     else
                         deliveryAttempts = 0
                         local eggs = FindEggsInMap()
@@ -1799,20 +1778,16 @@ MakeToggle(pHarvest, "Instant Farm", "Instantly teleport to eggs and collect the
                                 and PerformVolcanicPickup(egg, true)
                                 or PerformInstantPickup(egg)
 
-                            if success and IsCarryingEgg() then
+                            if success or IsCarryingEgg() then
                                 State.Status = "Instant Claiming..."
                                 UpdateMonitorUI()
 
-                                local delivered = PerformInstantDelivery()
-                                if delivered then
-                                    State.EggCount = State.EggCount + 1
-                                    SendNotif("PANEN SUKSES", string.format("Panen telur %s berhasil! Total: %d", egg.Name, State.EggCount))
-                                    IgnoredEggs[egg.Object] = os.clock() + 30
-                                    if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 30 end
-                                else
-                                    IgnoredEggs[egg.Object] = os.clock() + 4
-                                    if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 4 end
-                                end
+                                PerformInstantDelivery()
+
+                                State.EggCount = State.EggCount + 1
+                                SendNotif("PANEN SUKSES", string.format("Panen telur %s berhasil! Total: %d", egg.Name, State.EggCount))
+                                IgnoredEggs[egg.Object] = os.clock() + 30
+                                if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 30 end
                             else
                                 IgnoredEggs[egg.Object] = os.clock() + 4
                                 if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 4 end
@@ -1827,7 +1802,7 @@ MakeToggle(pHarvest, "Instant Farm", "Instantly teleport to eggs and collect the
                         end
                     end
                 end
-                task.wait(0.3)
+                task.wait(0.8)
             end
             State.Status = "Idle"
             State.TargetName = "None"
