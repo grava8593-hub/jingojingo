@@ -85,7 +85,7 @@ pcall(function()
             if self == EggArrivalClaimRem or lname == "eggarrivalclaim" then
                 local args = { ... }
                 if #args >= 1 and typeof(args[1]) == "number" then
-                    args[1] = os.time() - 240
+                    args[1] = os.time() - 300
                     return oldNamecall(self, unpack(args))
                 end
             end
@@ -220,7 +220,7 @@ local function ClickOrActivateEgg()
     if not char then return end
 
     for _, tool in ipairs(char:GetChildren()) do
-        if tool:IsA("Tool") then
+        if tool:IsA("Tool") and string.find(string.lower(tool.Name), "egg") then
             pcall(function() tool:Activate() end)
         end
     end
@@ -245,14 +245,6 @@ local function IsCarryingEgg()
     for _, tool in ipairs(char:GetChildren()) do
         if tool:IsA("Tool") and string.find(string.lower(tool.Name), "egg") then
             return true
-        end
-    end
-    local bp = LP:FindFirstChild("Backpack")
-    if bp then
-        for _, tool in ipairs(bp:GetChildren()) do
-            if tool:IsA("Tool") and string.find(string.lower(tool.Name), "egg") then
-                return true
-            end
         end
     end
     for _, item in ipairs(char:GetChildren()) do
@@ -679,7 +671,7 @@ local function PerformFullDelivery()
     UpdateMonitorUI()
 
     if EggArrivalClaimRem then
-        local now = os.time() - 240
+        local now = os.time() - 300
         SafeFire(EggArrivalClaimRem, now, basePos.X, basePos.Y, basePos.Z, {})
     end
     task.wait(0.08)
@@ -745,21 +737,21 @@ local function PerformInstantDelivery()
 
     root.CFrame = CFrame.new(basePos + Vector3.new(0, 2.5, 0))
     root.AssemblyLinearVelocity = Vector3.zero
-    task.wait(0.15)
+    task.wait(0.12)
 
     State.Status = "Storing & Claiming..."
     UpdateMonitorUI()
 
     if EggArrivalClaimRem then
-        local spoofTime = os.time() - 240
+        local spoofTime = os.time() - 300
         SafeFire(EggArrivalClaimRem, spoofTime, basePos.X, basePos.Y, basePos.Z, {})
     end
-    task.wait(0.08)
+    task.wait(0.06)
 
     if RequestPlotEggsRem then
         SafeFire(RequestPlotEggsRem, false)
     end
-    task.wait(0.08)
+    task.wait(0.06)
 
     if EggPlacedRemote then
         SafeFire(EggPlacedRemote, {})
@@ -791,37 +783,10 @@ local function PerformInstantDelivery()
         end
     end
 
-    local char = LP.Character
-    local bp = LP:FindFirstChild("Backpack")
-    local hum = GetHum()
-    local heldTool = nil
-    if char then
-        for _, t in ipairs(char:GetChildren()) do
-            if t:IsA("Tool") and string.find(string.lower(t.Name), "egg") then
-                heldTool = t
-                break
-            end
-        end
-    end
-    if not heldTool and bp then
-        for _, t in ipairs(bp:GetChildren()) do
-            if t:IsA("Tool") and string.find(string.lower(t.Name), "egg") then
-                heldTool = t
-                break
-            end
-        end
-    end
-    if heldTool and hum then
-        if heldTool.Parent ~= char then
-            hum:EquipTool(heldTool)
-            task.wait(0.08)
-        end
-        pcall(function() heldTool:Activate() end)
-    end
-
     ClickOrActivateEgg()
     task.wait(0.08)
 
+    local hum = GetHum()
     if hum then
         pcall(function() hum:UnequipTools() end)
     end
