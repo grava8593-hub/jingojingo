@@ -43,11 +43,7 @@ pcall(function()
     if isfile(discordIconPath) then
         delfile(discordIconPath)
     end
-
-    writefile(
-        discordIconPath,
-        game:HttpGet("https://raw.githubusercontent.com/grava8593-hub/icon/main/dcicon.png")
-    )
+    writefile(discordIconPath, game:HttpGet("https://raw.githubusercontent.com/grava8593-hub/icon/main/dcicon.png"))
 end)
 
 local discordCustomIcon = isfile(discordIconPath) and getcustomasset(discordIconPath) or ""
@@ -137,10 +133,6 @@ local LastEggScan = 0
 local EggScanDelay = 0.8
 local UpdateMonitorUI = function() end
 
--- Tracking waktu ambil untuk Anti-Cheat bypass
-local LastEggPickupTime = 0
-local LastEggPickupPos  = nil
-
 local State = {
     MasterFarm   = false,
     InstantFarm  = false,
@@ -157,7 +149,7 @@ local State = {
     EggESP       = false,
     Flying       = false,
     FlySpeed     = 75,
-    ReturnSpeed  = 500,
+    ReturnSpeed  = 78,
     WalkSpeed    = 16,
     JumpPower    = 50,
     BaseCFrame   = nil,
@@ -190,15 +182,13 @@ local function TriggerPromptInstant(prompt)
     if not prompt or not prompt:IsA("ProximityPrompt") then return end
     pcall(function()
         prompt.MaxActivationDistance = 999
-        prompt.HoldDuration = 0
-        prompt.RequiresLineOfSight = false
         if fireproximityprompt then
             fireproximityprompt(prompt)
             return
         end
         if prompt.InputHoldBegin and prompt.InputHoldEnd then
             prompt:InputHoldBegin()
-            task.wait(0.04)
+            task.wait(prompt.HoldDuration + 0.15)
             prompt:InputHoldEnd()
         end
     end)
@@ -228,68 +218,14 @@ local function ClickOrActivateEgg()
     end
 end
 
--- ============================================================
--- FIX 1: DETEKSI TELUR DI TANGAN MAUPUN BACKPACK + AUTO EQUIP
--- ============================================================
-local function EnsureEggEquipped()
-    local char = LP.Character
-    local hum = GetHum()
-    if not char or not hum then return false end
-
-    -- Cek jika sudah pegang telur
-    for _, tool in ipairs(char:GetChildren()) do
-        if tool:IsA("Tool") and string.find(string.lower(tool.Name), "egg") then
-            return true
-        end
-    end
-
-    -- Lepas tool selain egg (seperti Bone)
-    for _, tool in ipairs(char:GetChildren()) do
-        if tool:IsA("Tool") and not string.find(string.lower(tool.Name), "egg") then
-            pcall(function() hum:UnequipTools() end)
-            task.wait(0.05)
-            break
-        end
-    end
-
-    -- Ambil telur dari backpack dan equip ke tangan
-    local bp = LP:FindFirstChild("Backpack")
-    if bp then
-        for _, tool in ipairs(bp:GetChildren()) do
-            if tool:IsA("Tool") and string.find(string.lower(tool.Name), "egg") then
-                pcall(function() hum:EquipTool(tool) end)
-                task.wait(0.08)
-                return true
-            end
-        end
-    end
-
-    return false
-end
-
 local function IsCarryingEgg()
     local char = LP.Character
     if not char then return false end
-
-    -- Cek di tangan karakter
     for _, tool in ipairs(char:GetChildren()) do
         if tool:IsA("Tool") and string.find(string.lower(tool.Name), "egg") then
             return true
         end
     end
-
-    -- Cek di Backpack (Inventory)
-    local bp = LP:FindFirstChild("Backpack")
-    if bp then
-        for _, tool in ipairs(bp:GetChildren()) do
-            if tool:IsA("Tool") and string.find(string.lower(tool.Name), "egg") then
-                -- Otomatis pasang ke tangan jika belum terpasang
-                EnsureEggEquipped()
-                return true
-            end
-        end
-    end
-
     for _, item in ipairs(char:GetChildren()) do
         if item:IsA("Model") and item ~= char then
             local n = string.lower(item.Name)
@@ -399,8 +335,8 @@ local function GlideToBaseSafe(basePos)
     local targetPos = basePos + Vector3.new(0, 2.5, 0)
     local dist = (startPos - targetPos).Magnitude
 
-    local speed = math.max(State.ReturnSpeed or 250, 50)
-    local totalTime = math.clamp(dist / speed, 0.1, 8.0)
+    local speed = math.clamp(State.ReturnSpeed or 78, 50, 82)
+    local totalTime = math.max(dist / speed, 0.5)
 
     if hum then hum.PlatformStand = true end
     root.Anchored = true
@@ -416,7 +352,7 @@ local function GlideToBaseSafe(basePos)
     root.Anchored = false
     if hum then hum.PlatformStand = false end
     root.AssemblyLinearVelocity = Vector3.zero
-    task.wait(0.05)
+    task.wait(0.08)
 end
 
 local function TweenRootTo(targetCFrame, speed)
@@ -644,16 +580,9 @@ local function FindEggsInMap()
     return list
 end
 
--- ============================================================
--- FIX 2: PICKUP AMAN TANPA CRASH INSTANCE
--- ============================================================
 local function CollectEggAtCurrentPosition(egg, timeout, allowObjectGone)
     local root = GetRoot()
     if not root or not egg or not egg.Part then return false end
-
-    -- Catat posisi & waktu pengambilan
-    LastEggPickupTime = os.time()
-    LastEggPickupPos  = root.Position
 
     for _, prompt in ipairs(egg.Object:GetDescendants()) do
         if prompt:IsA("ProximityPrompt") then
@@ -664,15 +593,15 @@ local function CollectEggAtCurrentPosition(egg, timeout, allowObjectGone)
     if firetouchinterest and root and egg.Part then
         pcall(function()
             firetouchinterest(root, egg.Part, 0)
-            task.wait(0.04)
             firetouchinterest(root, egg.Part, 1)
         end)
     end
 
-    -- HANYA tembak remote jika berupa UUID string (cegah crash!)
     local uuid = egg.UUID or GetEggUUID(egg.Object)
-    if EggPickupRemote and uuid and typeof(uuid) == "string" then
-        SafeFire(EggPickupRemote, uuid)
+    if EggPickupRemote then
+        if uuid then
+            SafeFire(EggPickupRemote, uuid)
+        end
     end
 
     ClickOrActivateEgg()
@@ -680,22 +609,20 @@ local function CollectEggAtCurrentPosition(egg, timeout, allowObjectGone)
     local startWait = os.clock()
     while os.clock() - startWait < timeout do
         if IsCarryingEgg() or not egg.Object:IsDescendantOf(Workspace) or (egg.Part and egg.Part.Transparency >= 0.9) then
-            EnsureEggEquipped()
             ClickOrActivateEgg()
             return true
         end
         task.wait(0.08)
     end
 
-    EnsureEggEquipped()
     return IsCarryingEgg() or (allowObjectGone and not egg.Object:IsDescendantOf(Workspace))
 end
 
 local function PerformEggPickup(egg)
     if not egg or not egg.Part then return false end
     SnapToTarget(egg.Part.Position)
-    task.wait(0.2)
-    return CollectEggAtCurrentPosition(egg, 1.0)
+    task.wait(0.15)
+    return CollectEggAtCurrentPosition(egg, 0.8)
 end
 
 local function PerformInstantPickup(egg)
@@ -730,31 +657,25 @@ local function PerformVolcanicPickup(egg, instant)
     return success
 end
 
--- ============================================================
--- FIX 3: BYPASS CODE AT-XXXX & RETURNED DENGAN WAKTU AMAN
--- ============================================================
-local function PerformDeliveryProcess(basePos)
+local function PerformFullDelivery()
     local root = GetRoot()
     if not root then return end
 
-    EnsureEggEquipped()
+    State.Status = "Gliding to Base..."
+    UpdateMonitorUI()
 
-    -- Hitung jarak dari tempat ambil ke base
-    local dist = 2500
-    if LastEggPickupPos then
-        dist = math.max((basePos - LastEggPickupPos).Magnitude, 400)
-    end
+    local baseCFrame = State.BaseCFrame or FindMyPlot()
+    local basePos = baseCFrame and baseCFrame.Position or root.Position
 
-    -- Hitung durasi aman agar server membaca kecepatan < 75 studs/s (lim 90)
-    local safeDuration = math.max(math.ceil(dist / 75) + 8, 25)
-    local safeStartTime = os.time() - safeDuration
+    GlideToBaseSafe(basePos)
+    task.wait(0.12)
 
     State.Status = "Storing & Claiming..."
     UpdateMonitorUI()
 
-    -- Kirim EggArrivalClaim dengan waktu mulai yang aman (BYPASS CODE AT-XXXX!)
     if EggArrivalClaimRem then
-        SafeFire(EggArrivalClaimRem, safeStartTime, basePos.X, basePos.Y, basePos.Z, {})
+        local now = os.time()
+        SafeFire(EggArrivalClaimRem, now, basePos.X, basePos.Y, basePos.Z, {})
     end
     task.wait(0.08)
 
@@ -800,38 +721,11 @@ local function PerformDeliveryProcess(basePos)
         end
     end)
 
-    task.wait(0.12)
-    if RequestPlotEggsRem then
-        SafeFire(RequestPlotEggsRem, false)
-    end
-end
-
-local function PerformFullDelivery()
-    local root = GetRoot()
-    if not root then return end
-
-    State.Status = "Gliding to Base..."
-    UpdateMonitorUI()
-
-    local baseCFrame = State.BaseCFrame or FindMyPlot()
-    local basePos = baseCFrame and baseCFrame.Position or root.Position
-
-    GlideToBaseSafe(basePos)
-    PerformDeliveryProcess(basePos)
+    task.wait(0.15)
 end
 
 local function PerformInstantDelivery()
-    local root = GetRoot()
-    if not root then return end
-
-    local baseCFrame = State.BaseCFrame or FindMyPlot()
-    local basePos = baseCFrame and baseCFrame.Position or root.Position
-
-    root.CFrame = CFrame.new(basePos + Vector3.new(0, 2.5, 0))
-    root.AssemblyLinearVelocity = Vector3.zero
-    task.wait(0.05)
-
-    PerformDeliveryProcess(basePos)
+    PerformFullDelivery()
 end
 
 local espFolder = nil
@@ -950,8 +844,6 @@ FloatBtn.Active = true
 FloatBtn.Visible = false
 FloatBtn.Parent = SG
 Instance.new("UICorner", FloatBtn).CornerRadius = UDim.new(1, 0)
-local FloatStroke = Instance.new("UIStroke")
-FloatStroke.Transparency = 1
 
 local Main = Instance.new("Frame")
 Main.Name = "MainFrame"
@@ -1882,7 +1774,7 @@ local MMeta = Instance.new("TextLabel")
 MMeta.Size = UDim2.new(1, -20, 0, 14)
 MMeta.Position = UDim2.fromOffset(10, 44)
 MMeta.BackgroundTransparency = 1
-MMeta.Text = "Harvested: 0 | Engine: Fast Delivery"
+MMeta.Text = "Harvested: 0 | Engine: Safe Delivery"
 MMeta.TextColor3 = Clr.RedGlow
 MMeta.Font = Enum.Font.Gotham
 MMeta.TextSize = 9
@@ -1902,94 +1794,94 @@ UpdateMonitorUI = function()
     MMeta.Text = string.format("Harvested: %d | Return Spd: %d", State.EggCount, State.ReturnSpeed)
 end
 
+local function StartHarvestLoop()
+    if not State.BaseCFrame then
+        State.BaseCFrame = FindMyPlot()
+    end
+    local deliveryAttempts = 0
+    while (State.MasterFarm or State.InstantFarm) and State.Running do
+        if not HasAnyEggSelected() then
+            State.Status = "Select Eggs First!"
+            State.TargetName = "None"
+            State.TargetRarity = "None"
+            UpdateMonitorUI()
+            task.wait(0.5)
+        else
+            if IsCarryingEgg() then
+                deliveryAttempts = deliveryAttempts + 1
+                State.Status = "Delivering Held Egg..."
+                UpdateMonitorUI()
+                PerformFullDelivery()
+                task.wait(0.15)
+
+                if deliveryAttempts >= 2 then
+                    ClickOrActivateEgg()
+                    local hum = GetHum()
+                    if hum then hum:UnequipTools() end
+                    deliveryAttempts = 0
+                    task.wait(0.2)
+                end
+            else
+                deliveryAttempts = 0
+                local eggs = FindEggsInMap()
+                if #eggs > 0 then
+                    local egg = eggs[1]
+                    State.Status = "Farming"
+                    State.TargetName = egg.Name
+                    State.TargetRarity = egg.Tier
+                    UpdateMonitorUI()
+
+                    State.Status = "Taking Egg..."
+                    UpdateMonitorUI()
+
+                    local success = egg.Name == "Volcanic Egg"
+                        and PerformVolcanicPickup(egg, true)
+                        or PerformInstantPickup(egg)
+
+                    if success or IsCarryingEgg() then
+                        State.Status = "Gliding to Base..."
+                        UpdateMonitorUI()
+
+                        PerformFullDelivery()
+
+                        State.EggCount = State.EggCount + 1
+                        IgnoredEggs[egg.Object] = os.clock() + 30
+                        if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 30 end
+                    else
+                        State.Status = "Missed, Next..."
+                        UpdateMonitorUI()
+                        IgnoredEggs[egg.Object] = os.clock() + 4
+                        if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 4 end
+                    end
+
+                    State.Status = "Searching Next..."
+                    State.TargetName = "None"
+                    State.TargetRarity = "None"
+                    UpdateMonitorUI()
+                    task.wait(0.15)
+                else
+                    State.Status = "Scanning Eggs..."
+                    State.TargetName = "None"
+                    State.TargetRarity = "None"
+                    UpdateMonitorUI()
+                end
+            end
+        end
+        task.wait(0.5)
+    end
+    State.Status = "Idle"
+    State.TargetName = "None"
+    State.TargetRarity = "None"
+    UpdateMonitorUI()
+end
+
 MakeToggle(pHarvest, "Auto Farm", "Collect selected eggs & deliver to base", false, 2, function(v)
     State.MasterFarm = v
     if v then
         State.InstantFarm = false
-    end
-    if v then
         State.Status = "Searching..."
         UpdateMonitorUI()
-        task.spawn(function()
-            if not State.BaseCFrame then
-                State.BaseCFrame = FindMyPlot()
-            end
-            local deliveryAttempts = 0
-            while State.MasterFarm and State.Running do
-                if not HasAnyEggSelected() then
-                    State.Status = "Select Eggs First!"
-                    State.TargetName = "None"
-                    State.TargetRarity = "None"
-                    UpdateMonitorUI()
-                    task.wait(0.5)
-                else
-                    if IsCarryingEgg() then
-                        deliveryAttempts = deliveryAttempts + 1
-                        State.Status = "Delivering Held Egg..."
-                        UpdateMonitorUI()
-                        PerformFullDelivery()
-                        task.wait(0.15)
-
-                        if deliveryAttempts >= 2 then
-                            ClickOrActivateEgg()
-                            local hum = GetHum()
-                            if hum then hum:UnequipTools() end
-                            deliveryAttempts = 0
-                            task.wait(0.2)
-                        end
-                    else
-                        deliveryAttempts = 0
-                        local eggs = FindEggsInMap()
-                        if #eggs > 0 then
-                            local egg = eggs[1]
-                            State.Status = "Farming"
-                            State.TargetName = egg.Name
-                            State.TargetRarity = egg.Tier
-                            UpdateMonitorUI()
-
-                            State.Status = "Taking Egg..."
-                            UpdateMonitorUI()
-
-                            local success = egg.Name == "Volcanic Egg"
-                                and PerformVolcanicPickup(egg, false)
-                                or PerformEggPickup(egg)
-
-                            if success or IsCarryingEgg() then
-                                State.Status = "Delivering to Base..."
-                                UpdateMonitorUI()
-
-                                PerformFullDelivery()
-
-                                State.EggCount = State.EggCount + 1
-                                IgnoredEggs[egg.Object] = os.clock() + 30
-                                if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 30 end
-                            else
-                                State.Status = "Missed, Next..."
-                                UpdateMonitorUI()
-                                IgnoredEggs[egg.Object] = os.clock() + 4
-                                if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 4 end
-                            end
-
-                            State.Status = "Searching Next..."
-                            State.TargetName = "None"
-                            State.TargetRarity = "None"
-                            UpdateMonitorUI()
-                            task.wait(0.15)
-                        else
-                            State.Status = "Scanning Eggs..."
-                            State.TargetName = "None"
-                            State.TargetRarity = "None"
-                            UpdateMonitorUI()
-                        end
-                    end
-                end
-                task.wait(0.8)
-            end
-            State.Status = "Idle"
-            State.TargetName = "None"
-            State.TargetRarity = "None"
-            UpdateMonitorUI()
-        end)
+        task.spawn(StartHarvestLoop)
     else
         State.Status = "Idle"
         State.TargetName = "None"
@@ -1998,85 +1890,13 @@ MakeToggle(pHarvest, "Auto Farm", "Collect selected eggs & deliver to base", fal
     end
 end)
 
-MakeToggle(pHarvest, "Instant Farm", "Instantly teleport to eggs and collect them", false, 3, function(v)
+MakeToggle(pHarvest, "Instant Farm", "Fast pickup & safe glide to base", false, 3, function(v)
     State.InstantFarm = v
     if v then
         State.MasterFarm = false
-    end
-    if v then
-        State.Status = "Searching (Instant)..."
+        State.Status = "Searching (Fast)..."
         UpdateMonitorUI()
-        task.spawn(function()
-            if not State.BaseCFrame then
-                State.BaseCFrame = FindMyPlot()
-            end
-            local deliveryAttempts = 0
-            while State.InstantFarm and State.Running do
-                if not HasAnyEggSelected() then
-                    State.Status = "Select Eggs First!"
-                    State.TargetName = "None"
-                    State.TargetRarity = "None"
-                    UpdateMonitorUI()
-                    task.wait(0.5)
-                else
-                    if IsCarryingEgg() then
-                        deliveryAttempts = deliveryAttempts + 1
-                        State.Status = "Instant Storing..."
-                        UpdateMonitorUI()
-                        PerformInstantDelivery()
-                        task.wait(0.1)
-
-                        if deliveryAttempts >= 2 then
-                            ClickOrActivateEgg()
-                            local hum = GetHum()
-                            if hum then hum:UnequipTools() end
-                            deliveryAttempts = 0
-                            task.wait(0.15)
-                        end
-                    else
-                        deliveryAttempts = 0
-                        local eggs = FindEggsInMap()
-                        if #eggs > 0 then
-                            local egg = eggs[1]
-                            State.Status = "Instant Taking..."
-                            State.TargetName = egg.Name
-                            State.TargetRarity = egg.Tier
-                            UpdateMonitorUI()
-
-                            local success = egg.Name == "Volcanic Egg"
-                                and PerformVolcanicPickup(egg, true)
-                                or PerformInstantPickup(egg)
-
-                            if success or IsCarryingEgg() then
-                                State.Status = "Instant Claiming..."
-                                UpdateMonitorUI()
-
-                                PerformInstantDelivery()
-
-                                State.EggCount = State.EggCount + 1
-                                IgnoredEggs[egg.Object] = os.clock() + 30
-                                if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 30 end
-                            else
-                                IgnoredEggs[egg.Object] = os.clock() + 4
-                                if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 4 end
-                            end
-
-                            task.wait(0.1)
-                        else
-                            State.Status = "Scanning Eggs..."
-                            State.TargetName = "None"
-                            State.TargetRarity = "None"
-                            UpdateMonitorUI()
-                        end
-                    end
-                end
-                task.wait(0.8)
-            end
-            State.Status = "Idle"
-            State.TargetName = "None"
-            State.TargetRarity = "None"
-            UpdateMonitorUI()
-        end)
+        task.spawn(StartHarvestLoop)
     else
         State.Status = "Idle"
         State.TargetName = "None"
@@ -2105,7 +1925,7 @@ rStroke.Parent = BtnEggTrigger
 BtnEggTrigger.MouseButton1Click:Connect(function() ModalOverlay.Visible = true end)
 
 MakeSlider(pHarvest, "Speed", 50, 600, State.ReturnSpeed, 5, function(v)
-    State.ReturnSpeed = v
+    State.ReturnSpeed = math.clamp(v, 50, 82)
     UpdateMonitorUI()
 end)
 
@@ -2457,6 +2277,6 @@ MakeButton(pSystem, "Destroy GUI", 6, DestroyAll)
 
 game:GetService("StarterGui"):SetCore("SendNotification", {
     Title = "Erdeva Hub",
-    Text = "Script Loaded with AT-Bypass & Backpack Fix!",
+    Text = "Script Loaded!",
     Duration = 6
 })
