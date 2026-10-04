@@ -78,9 +78,9 @@ pcall(function()
 end)
 
 local AllEggList = {
+    {name = "Volcanic Egg", tier = "Godly"},
     {name = "Blackhole Egg", tier = "Godly"},
     {name = "Bloom Egg", tier = "Godly"},
-    {name = "Volcanic Egg", tier = "Godly"},
     {name = "Solaris Egg", tier = "Godly"},
     {name = "Galaxy Egg", tier = "Legendary"},
     {name = "Aurora Egg", tier = "Godly"},
@@ -132,7 +132,14 @@ local TierColors = {
 }
 
 local IgnoredEggs = {}
+local EggScanCache = {}
+local LastEggScan = 0
+local EggScanDelay = 0.8
 local UpdateMonitorUI = function() end
+
+-- Tracking waktu ambil untuk Anti-Cheat bypass
+local LastEggPickupTime = 0
+local LastEggPickupPos  = nil
 
 local State = {
     MasterFarm   = false,
@@ -183,10 +190,15 @@ local function TriggerPromptInstant(prompt)
     if not prompt or not prompt:IsA("ProximityPrompt") then return end
     pcall(function()
         prompt.MaxActivationDistance = 999
-        if fireproximityprompt then fireproximityprompt(prompt) end
+        prompt.HoldDuration = 0
+        prompt.RequiresLineOfSight = false
+        if fireproximityprompt then
+            fireproximityprompt(prompt)
+            return
+        end
         if prompt.InputHoldBegin and prompt.InputHoldEnd then
             prompt:InputHoldBegin()
-            task.wait(0.25)
+            task.wait(0.04)
             prompt:InputHoldEnd()
         end
     end)
@@ -216,14 +228,68 @@ local function ClickOrActivateEgg()
     end
 end
 
-local function IsCarryingEgg()
+-- ============================================================
+-- FIX 1: DETEKSI TELUR DI TANGAN MAUPUN BACKPACK + AUTO EQUIP
+-- ============================================================
+local function EnsureEggEquipped()
     local char = LP.Character
-    if not char then return false end
+    local hum = GetHum()
+    if not char or not hum then return false end
+
+    -- Cek jika sudah pegang telur
     for _, tool in ipairs(char:GetChildren()) do
         if tool:IsA("Tool") and string.find(string.lower(tool.Name), "egg") then
             return true
         end
     end
+
+    -- Lepas tool selain egg (seperti Bone)
+    for _, tool in ipairs(char:GetChildren()) do
+        if tool:IsA("Tool") and not string.find(string.lower(tool.Name), "egg") then
+            pcall(function() hum:UnequipTools() end)
+            task.wait(0.05)
+            break
+        end
+    end
+
+    -- Ambil telur dari backpack dan equip ke tangan
+    local bp = LP:FindFirstChild("Backpack")
+    if bp then
+        for _, tool in ipairs(bp:GetChildren()) do
+            if tool:IsA("Tool") and string.find(string.lower(tool.Name), "egg") then
+                pcall(function() hum:EquipTool(tool) end)
+                task.wait(0.08)
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+local function IsCarryingEgg()
+    local char = LP.Character
+    if not char then return false end
+
+    -- Cek di tangan karakter
+    for _, tool in ipairs(char:GetChildren()) do
+        if tool:IsA("Tool") and string.find(string.lower(tool.Name), "egg") then
+            return true
+        end
+    end
+
+    -- Cek di Backpack (Inventory)
+    local bp = LP:FindFirstChild("Backpack")
+    if bp then
+        for _, tool in ipairs(bp:GetChildren()) do
+            if tool:IsA("Tool") and string.find(string.lower(tool.Name), "egg") then
+                -- Otomatis pasang ke tangan jika belum terpasang
+                EnsureEggEquipped()
+                return true
+            end
+        end
+    end
+
     for _, item in ipairs(char:GetChildren()) do
         if item:IsA("Model") and item ~= char then
             local n = string.lower(item.Name)
@@ -372,6 +438,32 @@ local function TweenRootTo(targetCFrame, speed)
     return true
 end
 
+local VolcanoCollisionState = {}
+
+local function SetVolcanoNoClip(enabled)
+    local char = LP.Character
+    if not char then return end
+
+    if enabled then
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                if VolcanoCollisionState[part] == nil then
+                    VolcanoCollisionState[part] = part.CanCollide
+                end
+                part.CanCollide = false
+            end
+        end
+        return
+    end
+
+    for part, canCollide in pairs(VolcanoCollisionState) do
+        if part and part.Parent then
+            part.CanCollide = canCollide
+        end
+    end
+    VolcanoCollisionState = {}
+end
+
 local function EnterVolcano()
     local root = GetRoot()
     local volcano = Workspace:FindFirstChild("Volcano")
@@ -391,12 +483,22 @@ local function EnterVolcano()
         return false
     end
 
+    root = GetRoot()
+    if not root then return false end
+    root.Anchored = true
+    root.AssemblyLinearVelocity = Vector3.zero
     if firetouchinterest then
         pcall(function()
             firetouchinterest(root, entrance, 0)
-            task.wait(0.15)
+            task.wait(0.2)
             firetouchinterest(root, entrance, 1)
         end)
+    end
+    task.wait(0.25)
+    root = GetRoot()
+    if root then
+        root.Anchored = false
+        root.AssemblyLinearVelocity = Vector3.zero
     end
 
     local started = os.clock()
@@ -410,8 +512,65 @@ local function EnterVolcano()
     return false
 end
 
+local function ExitVolcanoToPlot()
+    local root = GetRoot()
+    local volcano = Workspace:FindFirstChild("Volcano")
+    local entrance = volcano and volcano:FindFirstChild("VolcanoEntrance")
+    local validate = volcano and volcano:FindFirstChild("VolcanoValidate")
+    if not root or not entrance or not entrance:IsA("BasePart") then return false end
+
+    State.Status = "Leaving Volcano..."
+    UpdateMonitorUI()
+    root.CFrame = entrance.CFrame + Vector3.new(0, 2.5, 0)
+    root.AssemblyLinearVelocity = Vector3.zero
+    root.Anchored = true
+    if firetouchinterest then
+        pcall(function()
+            firetouchinterest(root, entrance, 0)
+            task.wait(0.2)
+            firetouchinterest(root, entrance, 1)
+        end)
+    end
+    task.wait(0.25)
+    root = GetRoot()
+    if root then
+        root.Anchored = false
+        root.AssemblyLinearVelocity = Vector3.zero
+    end
+
+    local started = os.clock()
+    while validate and os.clock() - started < 2 do
+        root = GetRoot()
+        if root and (root.Position - validate.Position).Magnitude > 18 then break end
+        task.wait(0.1)
+    end
+
+    root = GetRoot()
+    local baseCFrame = State.BaseCFrame or FindMyPlot()
+    if root and baseCFrame then
+        root.CFrame = baseCFrame + Vector3.new(0, 2.5, 0)
+        root.AssemblyLinearVelocity = Vector3.zero
+    end
+    return true
+end
+
 local function FindEggsInMap()
     local list = {}
+    local scanNow = os.clock()
+
+    if scanNow - LastEggScan < EggScanDelay then
+        for _, egg in ipairs(EggScanCache) do
+            if egg.Object
+                and egg.Object:IsDescendantOf(Workspace)
+                and not IgnoredEggs[egg.Object]
+                and State.SelectedEggs[egg.Name] then
+                table.insert(list, egg)
+            end
+        end
+        return list
+    end
+
+    LastEggScan = scanNow
     local root = GetRoot()
     local myPos = root and root.Position or Vector3.zero
 
@@ -481,12 +640,20 @@ local function FindEggsInMap()
         return a.Distance < b.Distance
     end)
 
+    EggScanCache = list
     return list
 end
 
+-- ============================================================
+-- FIX 2: PICKUP AMAN TANPA CRASH INSTANCE
+-- ============================================================
 local function CollectEggAtCurrentPosition(egg, timeout, allowObjectGone)
     local root = GetRoot()
     if not root or not egg or not egg.Part then return false end
+
+    -- Catat posisi & waktu pengambilan
+    LastEggPickupTime = os.time()
+    LastEggPickupPos  = root.Position
 
     for _, prompt in ipairs(egg.Object:GetDescendants()) do
         if prompt:IsA("ProximityPrompt") then
@@ -497,18 +664,15 @@ local function CollectEggAtCurrentPosition(egg, timeout, allowObjectGone)
     if firetouchinterest and root and egg.Part then
         pcall(function()
             firetouchinterest(root, egg.Part, 0)
+            task.wait(0.04)
             firetouchinterest(root, egg.Part, 1)
         end)
     end
 
+    -- HANYA tembak remote jika berupa UUID string (cegah crash!)
     local uuid = egg.UUID or GetEggUUID(egg.Object)
-    if EggPickupRemote then
-        if uuid then
-            SafeFire(EggPickupRemote, uuid)
-        else
-            SafeFire(EggPickupRemote, egg.Object)
-            SafeFire(EggPickupRemote, egg.Part)
-        end
+    if EggPickupRemote and uuid and typeof(uuid) == "string" then
+        SafeFire(EggPickupRemote, uuid)
     end
 
     ClickOrActivateEgg()
@@ -516,19 +680,21 @@ local function CollectEggAtCurrentPosition(egg, timeout, allowObjectGone)
     local startWait = os.clock()
     while os.clock() - startWait < timeout do
         if IsCarryingEgg() or not egg.Object:IsDescendantOf(Workspace) or (egg.Part and egg.Part.Transparency >= 0.9) then
+            EnsureEggEquipped()
             ClickOrActivateEgg()
             return true
         end
-        task.wait(0.1)
+        task.wait(0.08)
     end
 
+    EnsureEggEquipped()
     return IsCarryingEgg() or (allowObjectGone and not egg.Object:IsDescendantOf(Workspace))
 end
 
 local function PerformEggPickup(egg)
     if not egg or not egg.Part then return false end
     SnapToTarget(egg.Part.Position)
-    task.wait(0.4)
+    task.wait(0.2)
     return CollectEggAtCurrentPosition(egg, 1.0)
 end
 
@@ -538,25 +704,106 @@ local function PerformInstantPickup(egg)
 
     root.CFrame = CFrame.new(egg.Part.Position + Vector3.new(0, 2.5, 0))
     root.AssemblyLinearVelocity = Vector3.zero
-    task.wait(0.04)
+    task.wait(0.08)
 
-    return CollectEggAtCurrentPosition(egg, 0.6, true)
+    if CollectEggAtCurrentPosition(egg, 0.8, true) then
+        return true
+    end
+
+    root = GetRoot()
+    if not root or not egg.Part or not egg.Part.Parent then return false end
+    root.CFrame = CFrame.new(egg.Part.Position + Vector3.new(0, 2.5, 0))
+    root.AssemblyLinearVelocity = Vector3.zero
+    task.wait(0.1)
+    return CollectEggAtCurrentPosition(egg, 0.8, true)
 end
 
 local function PerformVolcanicPickup(egg, instant)
     if not EnterVolcano() then return false end
 
-    if instant then
-        return PerformInstantPickup(egg)
+    State.Status = "Teleporting to Volcanic Egg..."
+    UpdateMonitorUI()
+    local success = PerformInstantPickup(egg)
+    if success or IsCarryingEgg() then
+        ExitVolcanoToPlot()
+    end
+    return success
+end
+
+-- ============================================================
+-- FIX 3: BYPASS CODE AT-XXXX & RETURNED DENGAN WAKTU AMAN
+-- ============================================================
+local function PerformDeliveryProcess(basePos)
+    local root = GetRoot()
+    if not root then return end
+
+    EnsureEggEquipped()
+
+    -- Hitung jarak dari tempat ambil ke base
+    local dist = 2500
+    if LastEggPickupPos then
+        dist = math.max((basePos - LastEggPickupPos).Magnitude, 400)
     end
 
-    State.Status = "Tweening to Volcanic Egg..."
+    -- Hitung durasi aman agar server membaca kecepatan < 75 studs/s (lim 90)
+    local safeDuration = math.max(math.ceil(dist / 75) + 8, 25)
+    local safeStartTime = os.time() - safeDuration
+
+    State.Status = "Storing & Claiming..."
     UpdateMonitorUI()
-    if not TweenRootTo(CFrame.new(egg.Part.Position + Vector3.new(0, 2.5, 0)), State.ReturnSpeed) then
-        return false
+
+    -- Kirim EggArrivalClaim dengan waktu mulai yang aman (BYPASS CODE AT-XXXX!)
+    if EggArrivalClaimRem then
+        SafeFire(EggArrivalClaimRem, safeStartTime, basePos.X, basePos.Y, basePos.Z, {})
     end
-    task.wait(0.15)
-    return CollectEggAtCurrentPosition(egg, 1.0)
+    task.wait(0.08)
+
+    if RequestPlotEggsRem then
+        SafeFire(RequestPlotEggsRem, false)
+    end
+    task.wait(0.08)
+
+    if EggPlacedRemote then
+        SafeFire(EggPlacedRemote, {})
+    end
+    if BasketDropRemote then
+        SafeFire(BasketDropRemote)
+    end
+
+    local plotObj = State.PlotObject or FindMyPlot()
+    if plotObj and typeof(plotObj) == "Instance" then
+        for _, prompt in ipairs(plotObj:GetDescendants()) do
+            if prompt:IsA("ProximityPrompt") then
+                TriggerPromptInstant(prompt)
+            end
+        end
+    end
+
+    ClickOrActivateEgg()
+    task.wait(0.08)
+
+    local hum = GetHum()
+    if hum then
+        pcall(function() hum:UnequipTools() end)
+    end
+
+    pcall(function()
+        for _, g in ipairs(PlayerGui:GetDescendants()) do
+            if (g:IsA("TextButton") or g:IsA("ImageButton")) and g.Visible then
+                local txt = string.lower(g:IsA("TextButton") and g.Text or g.Name)
+                if string.find(txt, "drop") or string.find(txt, "store") or string.find(txt, "place") or string.find(txt, "bag") then
+                    if g.MouseButton1Click then
+                        for _, c in ipairs(getconnections(g.MouseButton1Click)) do c:Fire() end
+                    end
+                end
+            end
+        end
+    end)
+
+    task.wait(0.12)
+    if RequestPlotEggsRem then
+        SafeFire(RequestPlotEggsRem, false)
+    end
 end
 
 local function PerformFullDelivery()
@@ -570,60 +817,7 @@ local function PerformFullDelivery()
     local basePos = baseCFrame and baseCFrame.Position or root.Position
 
     GlideToBaseSafe(basePos)
-    task.wait(0.12)
-
-    State.Status = "Storing & Claiming..."
-    UpdateMonitorUI()
-
-    if EggArrivalClaimRem then
-        local now = os.time()
-        SafeFire(EggArrivalClaimRem, now, basePos.X, basePos.Y, basePos.Z, {})
-    end
-    task.wait(0.08)
-
-    if RequestPlotEggsRem then
-        SafeFire(RequestPlotEggsRem, false)
-    end
-    task.wait(0.08)
-
-    if EggPlacedRemote then
-        SafeFire(EggPlacedRemote, {})
-    end
-    if BasketDropRemote then
-        SafeFire(BasketDropRemote)
-    end
-
-    local plotObj = State.PlotObject or FindMyPlot()
-    if plotObj and typeof(plotObj) == "Instance" then
-        for _, prompt in ipairs(plotObj:GetDescendants()) do
-            if prompt:IsA("ProximityPrompt") then
-                TriggerPromptInstant(prompt)
-            end
-        end
-    end
-
-    ClickOrActivateEgg()
-    task.wait(0.08)
-
-    local hum = GetHum()
-    if hum then
-        pcall(function() hum:UnequipTools() end)
-    end
-
-    pcall(function()
-        for _, g in ipairs(PlayerGui:GetDescendants()) do
-            if (g:IsA("TextButton") or g:IsA("ImageButton")) and g.Visible then
-                local txt = string.lower(g:IsA("TextButton") and g.Text or g.Name)
-                if string.find(txt, "drop") or string.find(txt, "store") or string.find(txt, "place") or string.find(txt, "bag") then
-                    if g.MouseButton1Click then
-                        for _, c in ipairs(getconnections(g.MouseButton1Click)) do c:Fire() end
-                    end
-                end
-            end
-        end
-    end)
-
-    task.wait(0.15)
+    PerformDeliveryProcess(basePos)
 end
 
 local function PerformInstantDelivery()
@@ -635,57 +829,9 @@ local function PerformInstantDelivery()
 
     root.CFrame = CFrame.new(basePos + Vector3.new(0, 2.5, 0))
     root.AssemblyLinearVelocity = Vector3.zero
-
-    State.Status = "Storing & Claiming..."
-    UpdateMonitorUI()
-
-    if EggArrivalClaimRem then
-        local now = os.time()
-        SafeFire(EggArrivalClaimRem, now, basePos.X, basePos.Y, basePos.Z, {})
-    end
     task.wait(0.05)
 
-    if RequestPlotEggsRem then
-        SafeFire(RequestPlotEggsRem, false)
-    end
-    task.wait(0.05)
-
-    if EggPlacedRemote then
-        SafeFire(EggPlacedRemote, {})
-    end
-    if BasketDropRemote then
-        SafeFire(BasketDropRemote)
-    end
-
-    local plotObj = State.PlotObject or FindMyPlot()
-    if plotObj and typeof(plotObj) == "Instance" then
-        for _, prompt in ipairs(plotObj:GetDescendants()) do
-            if prompt:IsA("ProximityPrompt") then
-                TriggerPromptInstant(prompt)
-            end
-        end
-    end
-
-    ClickOrActivateEgg()
-    task.wait(0.05)
-
-    local hum = GetHum()
-    if hum then
-        pcall(function() hum:UnequipTools() end)
-    end
-
-    pcall(function()
-        for _, g in ipairs(PlayerGui:GetDescendants()) do
-            if (g:IsA("TextButton") or g:IsA("ImageButton")) and g.Visible then
-                local txt = string.lower(g:IsA("TextButton") and g.Text or g.Name)
-                if string.find(txt, "drop") or string.find(txt, "store") or string.find(txt, "place") or string.find(txt, "bag") then
-                    if g.MouseButton1Click then
-                        for _, c in ipairs(getconnections(g.MouseButton1Click)) do c:Fire() end
-                    end
-                end
-            end
-        end
-    end)
+    PerformDeliveryProcess(basePos)
 end
 
 local espFolder = nil
@@ -1759,6 +1905,9 @@ end
 MakeToggle(pHarvest, "Auto Farm", "Collect selected eggs & deliver to base", false, 2, function(v)
     State.MasterFarm = v
     if v then
+        State.InstantFarm = false
+    end
+    if v then
         State.Status = "Searching..."
         UpdateMonitorUI()
         task.spawn(function()
@@ -1834,7 +1983,7 @@ MakeToggle(pHarvest, "Auto Farm", "Collect selected eggs & deliver to base", fal
                         end
                     end
                 end
-                task.wait(0.2)
+                task.wait(0.8)
             end
             State.Status = "Idle"
             State.TargetName = "None"
@@ -1851,6 +2000,9 @@ end)
 
 MakeToggle(pHarvest, "Instant Farm", "Instantly teleport to eggs and collect them", false, 3, function(v)
     State.InstantFarm = v
+    if v then
+        State.MasterFarm = false
+    end
     if v then
         State.Status = "Searching (Instant)..."
         UpdateMonitorUI()
@@ -1918,7 +2070,7 @@ MakeToggle(pHarvest, "Instant Farm", "Instantly teleport to eggs and collect the
                         end
                     end
                 end
-                task.wait(0.15)
+                task.wait(0.8)
             end
             State.Status = "Idle"
             State.TargetName = "None"
@@ -2133,7 +2285,7 @@ MakeButton(pTeleport, "Teleport to My Plot", 1, function()
     end
 end)
 
-MakeToggle(pMovement, "Hover Fly (Universal)", "Fly freely in all directions", false, 1, function(v)
+MakeToggle(pMovement, "FLY (PC - WASD ONLY)", "Fly freely in all directions", false, 1, function(v)
     ToggleFly(v)
 end)
 
@@ -2294,18 +2446,17 @@ MakeButton(pSystem, "FPS Booster", 5, function()
     EnableUltraFps()
     pcall(function()
         game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "Ultra FPS Mode",
-            Text = "Ultra graphics reduction is active until GUI is closed.",
+            Title = "ERDEVA HUB",
+            Text = "FPS Booster Active!.",
             Duration = 3
         })
     end)
 end)
 
-
 MakeButton(pSystem, "Destroy GUI", 6, DestroyAll)
 
 game:GetService("StarterGui"):SetCore("SendNotification", {
     Title = "Erdeva Hub",
-    Text = "Script Loaded!",
+    Text = "Script Loaded with AT-Bypass & Backpack Fix!",
     Duration = 6
 })
