@@ -76,11 +76,7 @@ pcall(function()
     oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
         local method = getnamecallmethod()
         if (method == "FireServer" or method == "InvokeServer") and typeof(self) == "Instance" then
-            local lname = string.lower(self.Name)
-            if self == EggBrokeRemote or lname == "eggbroke" then
-                return nil
-            end
-            if self == EggArrivalClaimRem or lname == "eggarrivalclaim" then
+            if self == EggBrokeRemote or string.lower(self.Name) == "eggbroke" then
                 return nil
             end
         end
@@ -148,6 +144,9 @@ local LastEggScan = 0
 local EggScanDelay = 0.8
 local UpdateMonitorUI = function() end
 
+local LastPickupPos = nil
+local LastPickupTime = 0
+
 local State = {
     MasterFarm   = false,
     InstantFarm  = false,
@@ -203,7 +202,7 @@ local function TriggerPromptInstant(prompt)
         end
         if prompt.InputHoldBegin and prompt.InputHoldEnd then
             prompt:InputHoldBegin()
-            task.wait(prompt.HoldDuration + 0.05)
+            task.wait(prompt.HoldDuration + 0.15)
             prompt:InputHoldEnd()
         end
     end)
@@ -236,15 +235,25 @@ end
 local function IsCarryingEgg()
     local char = LP.Character
     if not char then return false end
-    for _, tool in ipairs(char:GetChildren()) do
-        if tool:IsA("Tool") and string.find(string.lower(tool.Name), "egg") then
+    local basket = char:FindFirstChild("Basket") or char:FindFirstChild("EggBasket")
+    if basket then
+        if #basket:GetChildren() > 0 then
             return true
+        end
+        return true
+    end
+    for _, tool in ipairs(char:GetChildren()) do
+        if tool:IsA("Tool") then
+            local tn = string.lower(tool.Name)
+            if string.find(tn, "egg") or string.find(tn, "basket") then
+                return true
+            end
         end
     end
     for _, item in ipairs(char:GetChildren()) do
         if item:IsA("Model") and item ~= char then
             local n = string.lower(item.Name)
-            if string.find(n, "egg") and not string.find(n, "pet") and not string.find(n, "mount") and not string.find(n, "nest") then
+            if string.find(n, "basket") or (string.find(n, "egg") and not string.find(n, "pet") and not string.find(n, "mount") and not string.find(n, "nest")) then
                 return true
             end
         end
@@ -337,35 +346,6 @@ local function SnapToTarget(targetPos)
     local root = GetRoot()
     if not root then return end
     root.CFrame = CFrame.new(targetPos + Vector3.new(0, 2.5, 0))
-    root.AssemblyLinearVelocity = Vector3.zero
-    task.wait(0.05)
-end
-
-local function GlideToBaseSafe(basePos)
-    local root = GetRoot()
-    local hum = GetHum()
-    if not root then return end
-
-    local startPos = root.Position
-    local targetPos = basePos + Vector3.new(0, 2.5, 0)
-    local dist = (startPos - targetPos).Magnitude
-
-    local speed = math.max(State.ReturnSpeed or 250, 50)
-    local totalTime = math.clamp(dist / speed, 0.1, 8.0)
-
-    if hum then hum.PlatformStand = true end
-    root.Anchored = true
-
-    local startTime = os.clock()
-    while os.clock() - startTime < totalTime do
-        local alpha = math.clamp((os.clock() - startTime) / totalTime, 0, 1)
-        root.CFrame = CFrame.new(startPos:Lerp(targetPos, alpha))
-        task.wait(0.02)
-    end
-
-    root.CFrame = CFrame.new(targetPos)
-    root.Anchored = false
-    if hum then hum.PlatformStand = false end
     root.AssemblyLinearVelocity = Vector3.zero
     task.wait(0.05)
 end
@@ -514,6 +494,7 @@ local function FindEggsInMap()
 
     for _, obj in ipairs(Workspace:GetDescendants()) do
         if not IgnoredEggs[obj] and (obj:IsA("Model") or (obj:IsA("BasePart") and not obj.Parent:IsA("Model"))) then
+            
             local inAnyPlot = obj:FindFirstAncestor("Plots") or obj:FindFirstAncestor("PlayerPlots")
             if myPlotObj and obj:IsDescendantOf(myPlotObj) then
                 inAnyPlot = true
@@ -538,6 +519,7 @@ local function FindEggsInMap()
                 if selected then
                     local p = obj:IsA("BasePart") and obj or obj:FindFirstChildWhichIsA("BasePart")
                     if p and p.Transparency < 0.9 and not IgnoredEggs[p] then
+                        
                         local distToBase = (p.Position - basePos).Magnitude
                         if distToBase > 120 then
                             local dist = (myPos - p.Position).Magnitude
@@ -588,9 +570,6 @@ local function CollectEggAtCurrentPosition(egg, timeout, allowObjectGone)
     if EggPickupRemote then
         if uuid then
             SafeFire(EggPickupRemote, uuid)
-        else
-            SafeFire(EggPickupRemote, egg.Object)
-            SafeFire(EggPickupRemote, egg.Part)
         end
     end
 
@@ -599,20 +578,21 @@ local function CollectEggAtCurrentPosition(egg, timeout, allowObjectGone)
     local startWait = os.clock()
     while os.clock() - startWait < timeout do
         if IsCarryingEgg() or not egg.Object:IsDescendantOf(Workspace) or (egg.Part and egg.Part.Transparency >= 0.9) then
+            LastPickupPos = egg.Part.Position
+            LastPickupTime = os.clock()
             ClickOrActivateEgg()
             return true
         end
-        task.wait(0.1)
+        task.wait(0.08)
     end
 
-    return IsCarryingEgg() or (allowObjectGone and not egg.Object:IsDescendantOf(Workspace))
-end
+    if IsCarryingEgg() then
+        LastPickupPos = egg.Part.Position
+        LastPickupTime = os.clock()
+        return true
+    end
 
-local function PerformEggPickup(egg)
-    if not egg or not egg.Part then return false end
-    SnapToTarget(egg.Part.Position)
-    task.wait(0.4)
-    return CollectEggAtCurrentPosition(egg, 1.0)
+    return allowObjectGone and not egg.Object:IsDescendantOf(Workspace)
 end
 
 local function PerformInstantPickup(egg)
@@ -631,7 +611,7 @@ local function PerformInstantPickup(egg)
     if not root or not egg.Part or not egg.Part.Parent then return false end
     root.CFrame = CFrame.new(egg.Part.Position + Vector3.new(0, 2.5, 0))
     root.AssemblyLinearVelocity = Vector3.zero
-    task.wait(0.12)
+    task.wait(0.1)
     return CollectEggAtCurrentPosition(egg, 0.8, true)
 end
 
@@ -647,33 +627,69 @@ local function PerformVolcanicPickup(egg, instant)
     return success
 end
 
-local function PerformFullDelivery()
+local function GetNestDepositCFrame(basePos)
+    local plotObj = State.PlotObject or FindMyPlot()
+    if plotObj and typeof(plotObj) == "Instance" then
+        local nests = plotObj:FindFirstChild("Nests") or plotObj:FindFirstChild("Nest")
+        if nests then
+            for _, d in ipairs(nests:GetDescendants()) do
+                if d:IsA("BasePart") then
+                    return d.CFrame + Vector3.new(0, 1.5, 0)
+                end
+            end
+        end
+        for _, prompt in ipairs(plotObj:GetDescendants()) do
+            if prompt:IsA("ProximityPrompt") then
+                local txt = string.lower(prompt.ActionText .. " " .. prompt.ObjectText)
+                if string.find(txt, "place") or string.find(txt, "deposit") or string.find(txt, "egg") or string.find(txt, "store") then
+                    local p = prompt.Parent:IsA("BasePart") and prompt.Parent or prompt.Parent:FindFirstChildWhichIsA("BasePart")
+                    if p then return p.CFrame + Vector3.new(0, 1.5, 0) end
+                end
+            end
+        end
+    end
+    return CFrame.new(basePos + Vector3.new(0, 1.5, 0))
+end
+
+local function DeliverSafelyAtPlot(basePos)
     local root = GetRoot()
     if not root then return end
 
-    State.Status = "Gliding to Base..."
+    local dist = 1500
+    if LastPickupPos then
+        dist = math.max((basePos - LastPickupPos).Magnitude, 300)
+    end
+
+    local safeDuration = math.clamp(dist / 175, 3, 26)
+    local elapsed = os.clock() - (LastPickupTime > 0 and LastPickupTime or (os.clock() - 1))
+    local remaining = safeDuration - elapsed
+
+    root.CFrame = CFrame.new(basePos + Vector3.new(0, 12, 0))
+    root.AssemblyLinearVelocity = Vector3.zero
+    root.Anchored = true
+
+    while remaining > 0 do
+        State.Status = string.format("Plot Wait: %ds", math.ceil(remaining))
+        UpdateMonitorUI()
+        local step = math.min(remaining, 0.4)
+        task.wait(step)
+        remaining = remaining - step
+        root = GetRoot()
+        if root then root.Anchored = true end
+    end
+
+    root = GetRoot()
+    if root then
+        root.Anchored = false
+        root.AssemblyLinearVelocity = Vector3.zero
+    end
+
+    State.Status = "Placing to Nest..."
     UpdateMonitorUI()
 
-    local baseCFrame = State.BaseCFrame or FindMyPlot()
-    local basePos = baseCFrame and baseCFrame.Position or root.Position
-
-    GlideToBaseSafe(basePos)
+    local nestCF = GetNestDepositCFrame(basePos)
+    root.CFrame = nestCF
     task.wait(0.12)
-
-    State.Status = "Storing & Claiming..."
-    UpdateMonitorUI()
-
-    if RequestPlotEggsRem then
-        SafeFire(RequestPlotEggsRem, false)
-    end
-    task.wait(0.08)
-
-    if EggPlacedRemote then
-        SafeFire(EggPlacedRemote, {})
-    end
-    if BasketDropRemote then
-        SafeFire(BasketDropRemote)
-    end
 
     local plotObj = State.PlotObject or FindMyPlot()
     if plotObj and typeof(plotObj) == "Instance" then
@@ -684,28 +700,34 @@ local function PerformFullDelivery()
         end
     end
 
-    ClickOrActivateEgg()
-    task.wait(0.08)
+    if EggPlacedRemote then
+        SafeFire(EggPlacedRemote, {})
+    end
+    if RequestPlotEggsRem then
+        SafeFire(RequestPlotEggsRem, false)
+    end
+
+    local confirmWait = os.clock()
+    while os.clock() - confirmWait < 2.5 do
+        if not IsCarryingEgg() then
+            break
+        end
+        ClickOrActivateEgg()
+        if plotObj and typeof(plotObj) == "Instance" then
+            for _, prompt in ipairs(plotObj:GetDescendants()) do
+                if prompt:IsA("ProximityPrompt") then
+                    TriggerPromptInstant(prompt)
+                end
+            end
+        end
+        task.wait(0.2)
+    end
 
     local hum = GetHum()
     if hum then
         pcall(function() hum:UnequipTools() end)
     end
-
-    pcall(function()
-        for _, g in ipairs(PlayerGui:GetDescendants()) do
-            if (g:IsA("TextButton") or g:IsA("ImageButton")) and g.Visible then
-                local txt = string.lower(g:IsA("TextButton") and g.Text or g.Name)
-                if string.find(txt, "drop") or string.find(txt, "store") or string.find(txt, "place") or string.find(txt, "bag") then
-                    if g.MouseButton1Click then
-                        for _, c in ipairs(getconnections(g.MouseButton1Click)) do c:Fire() end
-                    end
-                end
-            end
-        end
-    end)
-
-    task.wait(0.15)
+    task.wait(0.1)
 end
 
 local function PerformInstantDelivery()
@@ -715,67 +737,7 @@ local function PerformInstantDelivery()
     local baseCFrame = State.BaseCFrame or FindMyPlot()
     local basePos = baseCFrame and baseCFrame.Position or root.Position
 
-    root.CFrame = CFrame.new(basePos + Vector3.new(0, 2.5, 0))
-    root.AssemblyLinearVelocity = Vector3.zero
-
-    State.Status = "Storing & Claiming..."
-    UpdateMonitorUI()
-
-    if RequestPlotEggsRem then
-        SafeFire(RequestPlotEggsRem, false)
-    end
-    task.wait(0.05)
-
-    if EggPlacedRemote then
-        SafeFire(EggPlacedRemote, {})
-    end
-    if BasketDropRemote then
-        SafeFire(BasketDropRemote)
-    end
-
-    local plotObj = State.PlotObject or FindMyPlot()
-    if plotObj and typeof(plotObj) == "Instance" then
-        for _, prompt in ipairs(plotObj:GetDescendants()) do
-            if prompt:IsA("ProximityPrompt") then
-                TriggerPromptInstant(prompt)
-            end
-        end
-        if firetouchinterest and root then
-            for _, part in ipairs(plotObj:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    local n = string.lower(part.Name)
-                    if string.find(n, "nest") or string.find(n, "basket") or string.find(n, "drop") or string.find(n, "soil") or string.find(n, "plant") then
-                        pcall(function()
-                            firetouchinterest(root, part, 0)
-                            task.wait(0.04)
-                            firetouchinterest(root, part, 1)
-                        end)
-                    end
-                end
-            end
-        end
-    end
-
-    ClickOrActivateEgg()
-    task.wait(0.05)
-
-    local hum = GetHum()
-    if hum then
-        pcall(function() hum:UnequipTools() end)
-    end
-
-    pcall(function()
-        for _, g in ipairs(PlayerGui:GetDescendants()) do
-            if (g:IsA("TextButton") or g:IsA("ImageButton")) and g.Visible then
-                local txt = string.lower(g:IsA("TextButton") and g.Text or g.Name)
-                if string.find(txt, "drop") or string.find(txt, "store") or string.find(txt, "place") or string.find(txt, "bag") then
-                    if g.MouseButton1Click then
-                        for _, c in ipairs(getconnections(g.MouseButton1Click)) do c:Fire() end
-                    end
-                end
-            end
-        end
-    end)
+    DeliverSafelyAtPlot(basePos)
 end
 
 local espFolder = nil
@@ -1085,6 +1047,7 @@ local TabButtons = {}
 local function CreateTab(name, assetId, order)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, 0, 0, 28)
+    btn.Position = UDim2.new()
     btn.BackgroundColor3 = Color3.fromRGB(48, 23, 31)
     btn.BackgroundTransparency = 1
     btn.Text = ""
@@ -1226,111 +1189,7 @@ local function MakeToggle(parent, title, desc, default, order, callback)
     return card
 end
 
-local function MakeButton(parent, text, order, callback)
-    local b = Instance.new("TextButton")
-    b.Size = UDim2.new(1, 0, 0, 32)
-    b.BackgroundColor3 = Color3.fromRGB(35, 25, 29)
-    b.BorderSizePixel = 0
-    b.Text = text
-    b.TextColor3 = Clr.TextMain
-    b.Font = Enum.Font.GothamBold
-    b.TextSize = 10
-    b.LayoutOrder = order or 0
-    b.Parent = parent
-    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 7)
-    local s = Instance.new("UIStroke")
-    s.Color = Clr.CardBorder
-    s.Thickness = 1
-    s.Transparency = 0.4
-    s.Parent = b
-    b.MouseButton1Click:Connect(function()
-        TweenService:Create(b, TweenInfo.new(0.08), {BackgroundColor3 = Clr.RedDark}):Play()
-        task.delay(0.1, function()
-            TweenService:Create(b, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(35, 25, 29)}):Play()
-        end)
-        callback()
-    end)
-    return b
-end
-
-local function MakeSlider(parent, title, minVal, maxVal, curVal, order, callback)
-    local f = Instance.new("Frame")
-    f.Size = UDim2.new(1, 0, 0, 44)
-    f.BackgroundColor3 = Clr.Card
-    f.BorderSizePixel = 0
-    f.LayoutOrder = order or 0
-    f.Parent = parent
-    Instance.new("UICorner", f).CornerRadius = UDim.new(0, 7)
-    local str = Instance.new("UIStroke")
-    str.Color = Clr.CardBorder
-    str.Thickness = 1
-    str.Transparency = 0.38
-    str.Parent = f
-    local tl = Instance.new("TextLabel")
-    tl.Size = UDim2.new(0.65, 0, 0, 14)
-    tl.Position = UDim2.fromOffset(10, 6)
-    tl.BackgroundTransparency = 1
-    tl.Text = title
-    tl.TextColor3 = Clr.TextMain
-    tl.Font = Enum.Font.GothamBold
-    tl.TextSize = 10
-    tl.TextXAlignment = Enum.TextXAlignment.Left
-    tl.Parent = f
-    local valBadge = Instance.new("TextLabel")
-    valBadge.Size = UDim2.fromOffset(45, 14)
-    valBadge.Position = UDim2.new(1, -55, 0, 6)
-    valBadge.BackgroundColor3 = Color3.fromRGB(43, 24, 31)
-    valBadge.Text = tostring(curVal)
-    valBadge.TextColor3 = Clr.RedGlow
-    valBadge.Font = Enum.Font.GothamBold
-    valBadge.TextSize = 9.5
-    valBadge.BorderSizePixel = 0
-    valBadge.Parent = f
-    Instance.new("UICorner", valBadge).CornerRadius = UDim.new(0, 4)
-    local bar = Instance.new("Frame")
-    bar.Size = UDim2.new(1, -20, 0, 4)
-    bar.Position = UDim2.fromOffset(10, 28)
-    bar.BackgroundColor3 = Color3.fromRGB(45, 36, 40)
-    bar.BorderSizePixel = 0
-    bar.Parent = f
-    Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
-    local fill = Instance.new("Frame")
-    local ratio = math.clamp((curVal - minVal) / (maxVal - minVal), 0, 1)
-    fill.Size = UDim2.new(ratio, 0, 1, 0)
-    fill.BackgroundColor3 = Clr.RedAccent
-    fill.BorderSizePixel = 0
-    fill.Parent = bar
-    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
-    local sliding = false
-    local hit = Instance.new("TextButton")
-    hit.Size = UDim2.new(1, 0, 3, 0)
-    hit.Position = UDim2.new(0, 0, -1, 0)
-    hit.BackgroundTransparency = 1
-    hit.Text = ""
-    hit.Parent = bar
-    hit.InputBegan:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-            sliding = true
-        end
-    end)
-    hit.InputEnded:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-            sliding = false
-        end
-    end)
-    UIS.InputChanged:Connect(function(i)
-        if sliding and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
-            local rel = math.clamp((i.Position.X - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
-            local val = math.floor(minVal + (maxVal - minVal) * rel)
-            fill.Size = UDim2.new(rel, 0, 1, 0)
-            valBadge.Text = tostring(val)
-            callback(val)
-        end
-    end)
-end
-
 local ModalOverlay = Instance.new("Frame")
-ModalOverlay.Name = "EggFilterModalOverlay"
 ModalOverlay.Size = UDim2.new(1, 0, 1, 0)
 ModalOverlay.BackgroundColor3 = Color3.fromRGB(8, 8, 10)
 ModalOverlay.BackgroundTransparency = 0.4
@@ -1617,7 +1476,7 @@ local MMeta = Instance.new("TextLabel")
 MMeta.Size = UDim2.new(1, -20, 0, 14)
 MMeta.Position = UDim2.fromOffset(10, 44)
 MMeta.BackgroundTransparency = 1
-MMeta.Text = "Harvested: 0 | Engine: Instant Bypass"
+MMeta.Text = "Harvested: 0 | Engine: Instant Catch (Safe Wait)"
 MMeta.TextColor3 = Clr.RedGlow
 MMeta.Font = Enum.Font.Gotham
 MMeta.TextSize = 9
@@ -1628,101 +1487,103 @@ UpdateMonitorUI = function()
     MStatus.Text = "Status: " .. State.Status
     if State.Status == "Farming" or string.find(State.Status, "Taking") then
         MStatus.TextColor3 = Color3.fromRGB(255, 185, 80)
-    elseif string.find(State.Status, "Base") or string.find(State.Status, "Claim") or string.find(State.Status, "Storing") then
+    elseif string.find(State.Status, "Base") or string.find(State.Status, "Wait") or string.find(State.Status, "Storing") then
         MStatus.TextColor3 = Color3.fromRGB(100, 210, 255)
     else
         MStatus.TextColor3 = Color3.fromRGB(130, 240, 160)
     end
     MTarget.Text = "Target: " .. State.TargetName .. " [" .. State.TargetRarity .. "]"
-    MMeta.Text = string.format("Harvested: %d | Return Spd: %d", State.EggCount, State.ReturnSpeed)
+    MMeta.Text = string.format("Harvested: %d | Status: %s", State.EggCount, State.Status)
 end
 
-MakeToggle(pHarvest, "Auto Farm", "Collect selected eggs & deliver to base", false, 2, function(v)
+local function StartFarmLoop()
+    if not State.BaseCFrame then
+        State.BaseCFrame = FindMyPlot()
+    end
+    local deliveryAttempts = 0
+    while (State.MasterFarm or State.InstantFarm) and State.Running do
+        if not HasAnyEggSelected() then
+            State.Status = "Select Eggs First!"
+            State.TargetName = "None"
+            State.TargetRarity = "None"
+            UpdateMonitorUI()
+            task.wait(0.5)
+        else
+            if IsCarryingEgg() then
+                deliveryAttempts = deliveryAttempts + 1
+                State.Status = "Delivering Held Egg..."
+                UpdateMonitorUI()
+                PerformInstantDelivery()
+                task.wait(0.1)
+
+                if deliveryAttempts >= 2 then
+                    ClickOrActivateEgg()
+                    local hum = GetHum()
+                    if hum then hum:UnequipTools() end
+                    deliveryAttempts = 0
+                    task.wait(0.15)
+                end
+            else
+                deliveryAttempts = 0
+                local eggs = FindEggsInMap()
+                if #eggs > 0 then
+                    local egg = eggs[1]
+                    State.Status = "Farming"
+                    State.TargetName = egg.Name
+                    State.TargetRarity = egg.Tier
+                    UpdateMonitorUI()
+
+                    State.Status = "Taking Egg..."
+                    UpdateMonitorUI()
+
+                    local success = egg.Name == "Volcanic Egg"
+                        and PerformVolcanicPickup(egg, true)
+                        or PerformInstantPickup(egg)
+
+                    if success or IsCarryingEgg() then
+                        State.Status = "Teleport to Plot..."
+                        UpdateMonitorUI()
+
+                        PerformInstantDelivery()
+
+                        if not IsCarryingEgg() then
+                            State.EggCount = State.EggCount + 1
+                            SendNotif("SUKSES PANEN", string.format("Berhasil panen telur %s! Total: %d", egg.Name, State.EggCount))
+                            IgnoredEggs[egg.Object] = os.clock() + 45
+                            if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 45 end
+                        else
+                            IgnoredEggs[egg.Object] = os.clock() + 6
+                            if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 6 end
+                        end
+                    else
+                        IgnoredEggs[egg.Object] = os.clock() + 4
+                        if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 4 end
+                    end
+
+                    task.wait(0.1)
+                else
+                    State.Status = "Scanning Eggs..."
+                    State.TargetName = "None"
+                    State.TargetRarity = "None"
+                    UpdateMonitorUI()
+                end
+            end
+        end
+        task.wait(0.4)
+    end
+    State.Status = "Idle"
+    State.TargetName = "None"
+    State.TargetRarity = "None"
+    UpdateMonitorUI()
+end
+
+MakeToggle(pHarvest, "Auto Farm", "Instant catch & smart plot delivery", false, 2, function(v)
     State.MasterFarm = v
     if v then
         State.InstantFarm = false
         State.Status = "Searching..."
         UpdateMonitorUI()
-        task.spawn(function()
-            if not State.BaseCFrame then
-                State.BaseCFrame = FindMyPlot()
-            end
-            local deliveryAttempts = 0
-            while State.MasterFarm and State.Running do
-                if not HasAnyEggSelected() then
-                    State.Status = "Select Eggs First!"
-                    State.TargetName = "None"
-                    State.TargetRarity = "None"
-                    UpdateMonitorUI()
-                    task.wait(0.5)
-                else
-                    if IsCarryingEgg() then
-                        deliveryAttempts = deliveryAttempts + 1
-                        State.Status = "Delivering Held Egg..."
-                        UpdateMonitorUI()
-                        PerformFullDelivery()
-                        task.wait(0.15)
-
-                        if deliveryAttempts >= 2 then
-                            ClickOrActivateEgg()
-                            local hum = GetHum()
-                            if hum then hum:UnequipTools() end
-                            deliveryAttempts = 0
-                            task.wait(0.2)
-                        end
-                    else
-                        deliveryAttempts = 0
-                        local eggs = FindEggsInMap()
-                        if #eggs > 0 then
-                            local egg = eggs[1]
-                            State.Status = "Farming"
-                            State.TargetName = egg.Name
-                            State.TargetRarity = egg.Tier
-                            UpdateMonitorUI()
-
-                            State.Status = "Taking Egg..."
-                            UpdateMonitorUI()
-
-                            local success = egg.Name == "Volcanic Egg"
-                                and PerformVolcanicPickup(egg, false)
-                                or PerformEggPickup(egg)
-
-                            if success or IsCarryingEgg() then
-                                State.Status = "Delivering to Base..."
-                                UpdateMonitorUI()
-
-                                PerformFullDelivery()
-
-                                State.EggCount = State.EggCount + 1
-                                IgnoredEggs[egg.Object] = os.clock() + 30
-                                if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 30 end
-                            else
-                                State.Status = "Missed, Next..."
-                                UpdateMonitorUI()
-                                IgnoredEggs[egg.Object] = os.clock() + 4
-                                if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 4 end
-                            end
-
-                            State.Status = "Searching Next..."
-                            State.TargetName = "None"
-                            State.TargetRarity = "None"
-                            UpdateMonitorUI()
-                            task.wait(0.15)
-                        else
-                            State.Status = "Scanning Eggs..."
-                            State.TargetName = "None"
-                            State.TargetRarity = "None"
-                            UpdateMonitorUI()
-                        end
-                    end
-                end
-                task.wait(0.8)
-            end
-            State.Status = "Idle"
-            State.TargetName = "None"
-            State.TargetRarity = "None"
-            UpdateMonitorUI()
-        end)
+        task.spawn(StartFarmLoop)
     else
         State.Status = "Idle"
         State.TargetName = "None"
@@ -1731,84 +1592,13 @@ MakeToggle(pHarvest, "Auto Farm", "Collect selected eggs & deliver to base", fal
     end
 end)
 
-MakeToggle(pHarvest, "Instant Farm", "Instantly teleport to eggs and collect them", false, 3, function(v)
+MakeToggle(pHarvest, "Instant Farm", "Instant catch & smart plot delivery", false, 3, function(v)
     State.InstantFarm = v
     if v then
         State.MasterFarm = false
-        State.Status = "Searching (Instant)..."
+        State.Status = "Searching..."
         UpdateMonitorUI()
-        task.spawn(function()
-            if not State.BaseCFrame then
-                State.BaseCFrame = FindMyPlot()
-            end
-            local deliveryAttempts = 0
-            while State.InstantFarm and State.Running do
-                if not HasAnyEggSelected() then
-                    State.Status = "Select Eggs First!"
-                    State.TargetName = "None"
-                    State.TargetRarity = "None"
-                    UpdateMonitorUI()
-                    task.wait(0.5)
-                else
-                    if IsCarryingEgg() then
-                        deliveryAttempts = deliveryAttempts + 1
-                        State.Status = "Instant Storing..."
-                        UpdateMonitorUI()
-                        PerformInstantDelivery()
-                        task.wait(0.1)
-
-                        if deliveryAttempts >= 2 then
-                            ClickOrActivateEgg()
-                            local hum = GetHum()
-                            if hum then hum:UnequipTools() end
-                            deliveryAttempts = 0
-                            task.wait(0.15)
-                        end
-                    else
-                        deliveryAttempts = 0
-                        local eggs = FindEggsInMap()
-                        if #eggs > 0 then
-                            local egg = eggs[1]
-                            State.Status = "Instant Taking..."
-                            State.TargetName = egg.Name
-                            State.TargetRarity = egg.Tier
-                            UpdateMonitorUI()
-
-                            local success = egg.Name == "Volcanic Egg"
-                                and PerformVolcanicPickup(egg, true)
-                                or PerformInstantPickup(egg)
-
-                            if success or IsCarryingEgg() then
-                                State.Status = "Instant Claiming..."
-                                UpdateMonitorUI()
-
-                                PerformInstantDelivery()
-
-                                State.EggCount = State.EggCount + 1
-                                SendNotif("PANEN SUKSES", string.format("Panen telur %s berhasil! Total: %d", egg.Name, State.EggCount))
-                                IgnoredEggs[egg.Object] = os.clock() + 30
-                                if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 30 end
-                            else
-                                IgnoredEggs[egg.Object] = os.clock() + 4
-                                if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 4 end
-                            end
-
-                            task.wait(0.1)
-                        else
-                            State.Status = "Scanning Eggs..."
-                            State.TargetName = "None"
-                            State.TargetRarity = "None"
-                            UpdateMonitorUI()
-                        end
-                    end
-                end
-                task.wait(0.8)
-            end
-            State.Status = "Idle"
-            State.TargetName = "None"
-            State.TargetRarity = "None"
-            UpdateMonitorUI()
-        end)
+        task.spawn(StartFarmLoop)
     else
         State.Status = "Idle"
         State.TargetName = "None"
@@ -1835,11 +1625,6 @@ rStroke.Thickness = 1
 rStroke.Transparency = 0.4
 rStroke.Parent = BtnEggTrigger
 BtnEggTrigger.MouseButton1Click:Connect(function() ModalOverlay.Visible = true end)
-
-MakeSlider(pHarvest, "Speed", 50, 600, State.ReturnSpeed, 5, function(v)
-    State.ReturnSpeed = v
-    UpdateMonitorUI()
-end)
 
 MakeToggle(pSanctuary, "Auto Deploy All Eggs", "Automatically plants eggs", false, 1, function(v)
     State.AutoDeploy = v
@@ -2059,11 +1844,6 @@ AvatarImg.BorderSizePixel = 0
 AvatarImg.Parent = ProfileCard
 Instance.new("UICorner", AvatarImg).CornerRadius = UDim.new(1, 0)
 
-local aStroke = Instance.new("UIStroke")
-aStroke.Color = Clr.RedGlow
-aStroke.Thickness = 1.5
-aStroke.Parent = AvatarImg
-
 local DisplayNameLbl = Instance.new("TextLabel")
 DisplayNameLbl.Size = UDim2.new(1, -70, 0, 16)
 DisplayNameLbl.Position = UDim2.fromOffset(64, 8)
@@ -2117,4 +1897,4 @@ end)
 
 MakeButton(pSystem, "Destroy GUI", 6, DestroyAll)
 
-SendNotif("ERDEVA HUB", "Script Siap! Instant Bypass Aktif.")
+SendNotif("ERDEVA HUB", "Script Siap! Opsi 3 (Instant Catch + Smart Plot Wait) Aktif!")
