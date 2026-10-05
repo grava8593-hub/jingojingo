@@ -70,6 +70,7 @@ local EggPlacedRemote     = GameRemotes and GameRemotes:FindFirstChild("EggPlace
 local RequestPlotEggsRem  = GameRemotes and GameRemotes:FindFirstChild("RequestPlotEggs")
 local BasketDropRemote    = GameRemotes and GameRemotes:FindFirstChild("BasketDrop")
 local EggBrokeRemote      = GameRemotes and GameRemotes:FindFirstChild("EggBroke")
+local EggTimerPauseRemote = GameRemotes and GameRemotes:FindFirstChild("EggTimerPause")
 
 pcall(function()
     local oldNamecall
@@ -237,10 +238,14 @@ local function IsCarryingEgg()
     if not char then return false end
     local basket = char:FindFirstChild("Basket") or char:FindFirstChild("EggBasket")
     if basket then
-        if #basket:GetChildren() > 0 then
+        for _, child in ipairs(basket:GetChildren()) do
+            if child:IsA("BasePart") or child:IsA("Model") then
+                return true
+            end
+        end
+        if basket:GetAttribute("Egg") or basket:GetAttribute("BreakAt") or basket:GetAttribute("BreakTime") then
             return true
         end
-        return true
     end
     for _, tool in ipairs(char:GetChildren()) do
         if tool:IsA("Tool") then
@@ -251,9 +256,9 @@ local function IsCarryingEgg()
         end
     end
     for _, item in ipairs(char:GetChildren()) do
-        if item:IsA("Model") and item ~= char then
+        if item:IsA("Model") and item ~= char and item ~= basket then
             local n = string.lower(item.Name)
-            if string.find(n, "basket") or (string.find(n, "egg") and not string.find(n, "pet") and not string.find(n, "mount") and not string.find(n, "nest")) then
+            if (string.find(n, "egg") or string.find(n, "basket")) and not string.find(n, "pet") and not string.find(n, "mount") and not string.find(n, "nest") then
                 return true
             end
         end
@@ -451,10 +456,10 @@ local function ExitVolcanoToPlot()
     end
 
     root = GetRoot()
-    local baseCFrame = State.BaseCFrame or FindMyPlot()
-    if root and baseCFrame then
-        root.CFrame = baseCFrame + Vector3.new(0, 2.5, 0)
+    if root and entrance then
+        root.CFrame = entrance.CFrame + Vector3.new(0, 3, 0)
         root.AssemblyLinearVelocity = Vector3.zero
+        LastPickupPos = entrance.Position
     end
     return true
 end
@@ -674,7 +679,41 @@ local function GetEggRemainingBreakTime()
     return 999
 end
 
-local function PerformSkyGlideDelivery()
+local function GlideToNest(nestCF, startPos)
+    local root = GetRoot()
+    local hum = GetHum()
+    if not root then return false end
+    local sPos = startPos or root.Position
+    local ePos = nestCF.Position
+    local hDist = (Vector2.new(sPos.X, sPos.Z) - Vector2.new(ePos.X, ePos.Z)).Magnitude
+    local speed = 82
+    local totalTime = math.max(hDist / speed, 0.3)
+    local rem = GetEggRemainingBreakTime()
+    if rem < 900 and totalTime > (rem - 3) then
+        speed = math.min(hDist / math.max(rem - 3.5, 1), 120)
+        totalTime = hDist / speed
+    end
+    local skyY = 320
+    local p1 = Vector3.new(sPos.X, skyY, sPos.Z)
+    local p2 = Vector3.new(ePos.X, skyY, ePos.Z)
+    local p3 = ePos + Vector3.new(0, 1.5, 0)
+    root.CFrame = CFrame.new(p1)
+    root.AssemblyLinearVelocity = Vector3.zero
+    local t0 = os.clock()
+    while os.clock() - t0 < totalTime do
+        local alpha = math.clamp((os.clock() - t0) / totalTime, 0, 1)
+        local curPos = p1:Lerp(p2, alpha)
+        root.CFrame = CFrame.new(curPos)
+        root.AssemblyLinearVelocity = Vector3.zero
+        task.wait()
+    end
+    root.CFrame = CFrame.new(p3)
+    root.AssemblyLinearVelocity = Vector3.zero
+    task.wait(0.1)
+    return true
+end
+
+local function PerformInstantDelivery()
     local root = GetRoot()
     local hum = GetHum()
     if not root then return end
@@ -682,66 +721,11 @@ local function PerformSkyGlideDelivery()
     local baseCFrame = State.BaseCFrame or FindMyPlot()
     local basePos = baseCFrame and baseCFrame.Position or root.Position
     local nestCF = GetNestDepositCFrame(basePos)
-    local nestPos = nestCF.Position
 
-    local skyY = 320
-    root.CFrame = CFrame.new(root.Position.X, skyY, root.Position.Z)
-    root.AssemblyLinearVelocity = Vector3.zero
-    task.wait(0.04)
-
-    if hum then hum.PlatformStand = true end
-
-    local bv = Instance.new("BodyVelocity")
-    bv.Name = "ErdevaSkyBV"
-    bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-    bv.Velocity = Vector3.zero
-    bv.Parent = root
-
-    local bg = Instance.new("BodyGyro")
-    bg.Name = "ErdevaSkyBG"
-    bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
-    bg.P = 1e6
-    bg.CFrame = CFrame.new(root.Position, Vector3.new(nestPos.X, skyY, nestPos.Z))
-    bg.Parent = root
-
-    local glideSpeed = 310
-    local targetSkyPos = Vector3.new(nestPos.X, skyY, nestPos.Z)
-    local startFlight = os.clock()
-
-    while State.Running and (os.clock() - startFlight < 35) do
-        if not IsCarryingEgg() then
-            break
-        end
-
-        local curPos = root.Position
-        local horizDiff = Vector3.new(nestPos.X - curPos.X, 0, nestPos.Z - curPos.Z)
-        local horizDist = horizDiff.Magnitude
-
-        if horizDist <= 30 then
-            break
-        end
-
-        local flyDir = horizDiff.Unit
-        bv.Velocity = flyDir * glideSpeed
-        bg.CFrame = CFrame.new(curPos, curPos + flyDir)
-
-        State.Status = string.format("Gliding: %dm (%.1fs)", math.floor(horizDist), os.clock() - startFlight)
-        UpdateMonitorUI()
-        task.wait(0.05)
-    end
-
-    bv.Velocity = Vector3.zero
-    task.wait(0.04)
-    if bv then bv:Destroy() end
-    if bg then bg:Destroy() end
-    if hum then hum.PlatformStand = false end
-
-    State.Status = "Landing on Nest..."
+    State.Status = "Flying to Nest..."
     UpdateMonitorUI()
 
-    root.CFrame = nestCF + Vector3.new(0, 1.5, 0)
-    root.AssemblyLinearVelocity = Vector3.zero
-    task.wait(0.12)
+    GlideToNest(nestCF, LastPickupPos)
 
     local plotObj = State.PlotObject or FindMyPlot()
     if plotObj and typeof(plotObj) == "Instance" then
@@ -760,7 +744,7 @@ local function PerformSkyGlideDelivery()
     end
 
     local confirmWait = os.clock()
-    while os.clock() - confirmWait < 3.0 do
+    while os.clock() - confirmWait < 2.5 do
         if not IsCarryingEgg() then
             break
         end
@@ -777,10 +761,6 @@ local function PerformSkyGlideDelivery()
 
     if hum then pcall(function() hum:UnequipTools() end) end
     task.wait(0.08)
-end
-
-local function PerformInstantDelivery()
-    PerformSkyGlideDelivery()
 end
 
 local espFolder = nil
