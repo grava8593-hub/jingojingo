@@ -3352,7 +3352,7 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
 
     AddToggle(EventsPage, "Auto UFO", "AutoUFO")
     AddToggle(EventsPage, "Auto Ancient Egg", "AutoAncientEgg")
-    AddLabel(EventsPage, "Auto Jurassic Pass - Expired Event")
+    AddBadge(EventsPage, "Auto Jurrasic Pass", "EXPIRED EVENT")
     AddToggle(EventsPage, "Auto Guild Quests", "AutoGuildQuests")
     
 
