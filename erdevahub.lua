@@ -1499,7 +1499,7 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
                     return
                 end
 
-                if ChickenInTower and (tick() - TowerSentTime >= 90) then
+                if ChickenInTower and (tick() - TowerSentTime >= 200) then
                     ChickenInTower = false
                     TowerSentTime = 0
                     TowerDelayState = "KO"
