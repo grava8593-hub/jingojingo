@@ -3178,7 +3178,7 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
     AddToggle(PlotPage, "Auto Upgrade Coop", "AutoUpgradeCoop")
 
     AddToggle(BattlePage, "Auto Start Tower", "AutoStartTower")
-    AddSlider(BattlePage, "Post-Rebirth Delay (s)", 100, 100, "TowerPostRebirthDelay")
+    AddSlider(BattlePage, "Post-Rebirth Delay (s)", 100, 15, "TowerPostRebirthDelay")
     AddSlider(BattlePage, "Post-KO Delay (s)", 30, 5, "TowerPostKODelay")
     AddToggle(BattlePage, "Auto Arena", "AutoArena")
     AddToggle(BattlePage, "Auto Close No Thanks", "AutoNoThanks")
