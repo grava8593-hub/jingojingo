@@ -3232,7 +3232,7 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
     AddToggle(PlotPage, "Auto Upgrade Coop", "AutoUpgradeCoop")
 
     AddToggle(BattlePage, "Auto Start Tower", "AutoStartTower")
-    AddSlider(BattlePage, "Post-Rebirth Delay (s)", 100, 100, "TowerPostRebirthDelay")
+    AddSlider(BattlePage, "Post-Rebirth Delay (s)", 100, 15, "TowerPostRebirthDelay")
     AddSlider(BattlePage, "Post-KO Delay (s)", 30, 5, "TowerPostKODelay")
     AddToggle(BattlePage, "Auto Arena", "AutoArena")
     AddToggle(BattlePage, "Auto Close No Thanks", "AutoNoThanks")
@@ -3244,7 +3244,7 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
 
     AddToggle(EventsPage, "Auto UFO", "AutoUFO")
     AddToggle(EventsPage, "Auto Ancient Egg", "AutoAncientEgg")
-    AddToggle(EventsPage, "Auto Jurassic Pass", "AutoJurassicPass")
+    AddBadge(EventsPage, "Auto Jurassic Pass", "EVENT EXPIRED")
     AddToggle(EventsPage, "Auto Guild Quests", "AutoGuildQuests")
     
 
@@ -3302,8 +3302,8 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
     InfoSpacer.Size = UDim2.new(1, 0, 0, 4)
     InfoSpacer.BackgroundTransparency = 1
 
-    local discBtn = AddButton(InfoPage, "Discord: discord.gg/P7g4jpZTU", function(btn)
-        local discordUrl = "https://discord.gg/P7g4jpZTU"
+    local discBtn = AddButton(InfoPage, "Discord: discord.gg/q85Bjcr2fM", function(btn)
+        local discordUrl = "https://discord.gg/q85Bjcr2fM"
         pcall(function()
             if setclipboard then
                 setclipboard(discordUrl)
@@ -3321,7 +3321,7 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
         btn.BackgroundColor3 = C.Green
         Notify("SpurHub", "Discord Link Copied to Clipboard!", 2.5)
         task.delay(2.5, function()
-            btn.Text = "Discord: discord.gg/P7g4jpZTU"
+            btn.Text = "Discord: discord.gg/q85Bjcr2fM"
             btn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
         end)
     end)
