@@ -64,12 +64,26 @@ local RequestPlotEggsRem  = GameRemotes and GameRemotes:FindFirstChild("RequestP
 local BasketDropRemote    = GameRemotes and GameRemotes:FindFirstChild("BasketDrop")
 local EggBrokeRemote      = GameRemotes and GameRemotes:FindFirstChild("EggBroke")
 
+local BlockedFailKeywords = {
+    "eggbroke", "eggbreak", "eggcrack", "eggdamage",
+    "basketdrop", "dropbasket", "eggdrop", "dropegg", "drop",
+    "eggreturn", "returnegg", "eggreturned",
+    "eggfailed", "eggfail", "deliveryfailed", "eggdeliveryfailed", "canceldelivery", "faileddelivery",
+    "egglost", "lostegg", "eggvoid", "eggtimeout", "carryfailed"
+}
+
 pcall(function()
     local oldNamecall
     oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
         local method = getnamecallmethod()
         if (method == "FireServer" or method == "InvokeServer") and typeof(self) == "Instance" then
-            if self == EggBrokeRemote or string.lower(self.Name) == "eggbroke" then
+            local n = string.lower(self.Name)
+            for _, kw in ipairs(BlockedFailKeywords) do
+                if string.find(n, kw) then
+                    return nil
+                end
+            end
+            if self == EggBrokeRemote or self == BasketDropRemote then
                 return nil
             end
         end
@@ -137,6 +151,11 @@ local LastEggScan = 0
 local EggScanDelay = 0.8
 local UpdateMonitorUI = function() end
 
+-- Auto-lock execution position as plot base
+local initChar = LP.Character or (LP.CharacterAdded and LP.CharacterAdded:Wait())
+local initRoot = initChar and (initChar:FindFirstChild("HumanoidRootPart") or initChar:WaitForChild("HumanoidRootPart", 5))
+local execBaseCFrame = initRoot and initRoot.CFrame or nil
+
 local State = {
     MasterFarm   = false,
     InstantFarm  = false,
@@ -156,8 +175,9 @@ local State = {
     ReturnSpeed  = 105,
     WalkSpeed    = 16,
     JumpPower    = 50,
-    BaseCFrame   = nil,
+    BaseCFrame   = execBaseCFrame,
     PlotObject   = nil,
+    ManualBaseSet= execBaseCFrame ~= nil,
     Running      = true,
     StayAtBase   = true,
     SelectedEggs = {}
@@ -199,7 +219,9 @@ local function TriggerPromptInstant(prompt)
     if not prompt or not prompt:IsA("ProximityPrompt") then return end
     pcall(function()
         prompt.MaxActivationDistance = 999
+        prompt.RequiresLineOfSight = false
         if fireproximityprompt then
+            fireproximityprompt(prompt, 0)
             fireproximityprompt(prompt)
             return
         end
@@ -238,19 +260,35 @@ end
 local function IsCarryingEgg()
     local char = LP.Character
     if not char then return false end
+
+    -- Check 1: Any Tool in Character (player holds egg or basket)
     for _, tool in ipairs(char:GetChildren()) do
-        if tool:IsA("Tool") and string.find(string.lower(tool.Name), "egg") then
-            return true
-        end
-    end
-    for _, item in ipairs(char:GetChildren()) do
-        if item:IsA("Model") and item ~= char then
-            local n = string.lower(item.Name)
-            if string.find(n, "egg") and not string.find(n, "pet") and not string.find(n, "mount") and not string.find(n, "nest") then
+        if tool:IsA("Tool") then
+            local n = string.lower(tool.Name)
+            if not string.find(n, "pet") and not string.find(n, "mount") and not string.find(n, "ride") then
                 return true
             end
         end
     end
+
+    -- Check 2: Models or Parts attached to character (e.g. egg weld, basket model)
+    for _, item in ipairs(char:GetChildren()) do
+        if (item:IsA("Model") or item:IsA("BasePart")) and item ~= char and item.Name ~= "HumanoidRootPart" then
+            local n = string.lower(item.Name)
+            if (string.find(n, "egg") or string.find(n, "basket") or string.find(n, "carry")) and not string.find(n, "pet") and not string.find(n, "mount") and not string.find(n, "nest") then
+                return true
+            end
+        end
+    end
+
+    -- Check 3: Character attributes
+    for attName, attVal in pairs(char:GetAttributes()) do
+        local an = string.lower(attName)
+        if (string.find(an, "egg") or string.find(an, "basket") or string.find(an, "carry") or string.find(an, "holding")) and attVal == true then
+            return true
+        end
+    end
+
     return false
 end
 
@@ -276,42 +314,129 @@ local function HasAnyEggSelected()
 end
 
 local function FindMyPlot()
-    local plots = Workspace:FindFirstChild("Plots") or Workspace:FindFirstChild("PlayerPlots")
-    if plots then
-        for _, pl in ipairs(plots:GetChildren()) do
-            local owner = pl:FindFirstChild("Owner") or pl:FindFirstChild("Player")
-            if (owner and owner.Value == LP) or string.find(string.lower(pl.Name), string.lower(LP.Name)) then
-                State.PlotObject = pl
-                local nest = pl:FindFirstChild("Nests") or pl:FindFirstChild("Nest") or pl:FindFirstChild("Plant1") or pl:FindFirstChildWhichIsA("BasePart")
-                if nest then
-                    local part = nest:IsA("BasePart") and nest or nest:FindFirstChildWhichIsA("BasePart")
-                    if part then return part.CFrame + Vector3.new(0, 1.5, 0) end
-                end
-                return pl:GetPivot() + Vector3.new(0, 1.5, 0)
+    -- 1. If manually locked by user, always respect it
+    if State.ManualBaseSet and State.BaseCFrame then
+        return State.BaseCFrame
+    end
+
+    local candidatePlots = {}
+    local possibleNames = {"Plots", "PlayerPlots", "Islands", "PlayerIslands", "Bases", "PlayerBases", "Farms", "PlayerFarms", "Sanctuaries", "PlayerSanctuaries", "Tycoons"}
+
+    for _, containerName in ipairs(possibleNames) do
+        local container = Workspace:FindFirstChild(containerName)
+        if container then
+            for _, pl in ipairs(container:GetChildren()) do
+                table.insert(candidatePlots, pl)
             end
         end
     end
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if obj:IsA("TextLabel") or obj:IsA("SurfaceGui") then
-            local txt = obj:IsA("TextLabel") and obj.Text or (obj:FindFirstChildWhichIsA("TextLabel") and obj:FindFirstChildWhichIsA("TextLabel").Text or "")
-            if string.find(string.lower(txt), string.lower(LP.Name)) and string.find(string.lower(txt), "plot") then
-                local p = obj:FindFirstAncestorWhichIsA("Model") or obj:FindFirstAncestorWhichIsA("BasePart")
-                if p then
-                    State.PlotObject = p
-                    return p:GetPivot() + Vector3.new(0, 1.5, 0)
+
+    for _, child in ipairs(Workspace:GetChildren()) do
+        if child:IsA("Model") or child:IsA("Folder") then
+            local lower = string.lower(child.Name)
+            for _, key in ipairs({"plot", "island", "base", "farm", "sanctuary"}) do
+                if string.find(lower, key) then
+                    table.insert(candidatePlots, child)
+                    break
                 end
             end
         end
     end
-    local sp = Workspace:FindFirstChildOfClass("SpawnLocation")
-    if sp then return sp.CFrame + Vector3.new(0, 3, 0) end
-    local root = GetRoot()
-    return root and root.CFrame or CFrame.new(0, 10, 0)
+
+    local myName = string.lower(LP.Name)
+    local myDisplay = string.lower(LP.DisplayName)
+    local myUserId = tostring(LP.UserId)
+
+    local function MatchesOwner(val)
+        if not val then return false end
+        if typeof(val) == "Instance" and val == LP then return true end
+        local s = string.lower(tostring(val))
+        return s == myName or s == myDisplay or s == myUserId or string.find(s, myName, 1, true)
+    end
+
+    for _, pl in ipairs(candidatePlots) do
+        local matched = false
+
+        -- Check Owner / Player objects
+        local ownerObj = pl:FindFirstChild("Owner") or pl:FindFirstChild("Player") or pl:FindFirstChild("User")
+        if ownerObj and MatchesOwner(ownerObj.Value) then
+            matched = true
+        end
+
+        -- Check Attributes
+        if not matched then
+            for att, val in pairs(pl:GetAttributes()) do
+                local aLow = string.lower(att)
+                if (string.find(aLow, "owner") or string.find(aLow, "player") or string.find(aLow, "user")) and MatchesOwner(val) then
+                    matched = true
+                    break
+                end
+            end
+        end
+
+        -- Check Model Name
+        if not matched then
+            local plName = string.lower(pl.Name)
+            if string.find(plName, myName, 1, true) or string.find(plName, myUserId, 1, true) then
+                matched = true
+            end
+        end
+
+        -- Check TextLabels inside plot
+        if not matched then
+            for _, desc in ipairs(pl:GetDescendants()) do
+                if desc:IsA("TextLabel") and desc.Text ~= "" then
+                    local t = string.lower(desc.Text)
+                    if string.find(t, myName, 1, true) or string.find(t, myDisplay, 1, true) then
+                        matched = true
+                        break
+                    end
+                end
+            end
+        end
+
+        if matched then
+            State.PlotObject = pl
+            for _, name in ipairs({"Base", "Floor", "Ground", "Plate", "Plot", "Baseplate", "Spawn", "Pad"}) do
+                local p = pl:FindFirstChild(name)
+                if p and p:IsA("BasePart") then
+                    return p.CFrame + Vector3.new(0, 1.8, 0)
+                end
+            end
+            if pl.PrimaryPart then
+                return pl.PrimaryPart.CFrame + Vector3.new(0, 1.8, 0)
+            end
+            local part = pl:FindFirstChildWhichIsA("BasePart", true)
+            if part then
+                return part.CFrame + Vector3.new(0, 1.8, 0)
+            end
+            return pl:GetPivot() + Vector3.new(0, 1.8, 0)
+        end
+    end
+
+    -- If no explicit owner tag matched, link the plot model closest to our auto-locked execution base
+    if State.BaseCFrame then
+        local bPos = typeof(State.BaseCFrame) == "CFrame" and State.BaseCFrame.Position or State.BaseCFrame
+        local nearest, nearDist = nil, 250
+        for _, pl in ipairs(candidatePlots) do
+            local d = (pl:GetPivot().Position - bPos).Magnitude
+            if d < nearDist then
+                nearDist = d
+                nearest = pl
+            end
+        end
+        if nearest then
+            State.PlotObject = nearest
+        end
+        return State.BaseCFrame
+    end
+
+    return nil
 end
 
 task.spawn(function()
     task.wait(0.5)
-    State.BaseCFrame = FindMyPlot()
+    FindMyPlot()
 end)
 
 local function FindTargetNest()
@@ -396,14 +521,68 @@ local function SnapToTarget(targetPos)
     task.wait(0.05)
 end
 
--- Restore camera immediately to player humanoid
-pcall(function()
+local visualDummy = nil
+local function SetupVisualDummy(enabled)
+    local char = LP.Character
     local cam = Workspace.CurrentCamera
-    local hum = GetHum()
-    if cam and hum then
-        cam.CameraSubject = hum
+    if not char then return end
+
+    if enabled then
+        if visualDummy then
+            pcall(function() visualDummy:Destroy() end)
+            visualDummy = nil
+        end
+        local plotCF = State.BaseCFrame or FindMyPlot()
+        local plotPos = plotCF and (typeof(plotCF) == "CFrame" and plotCF.Position or plotCF) or char:GetPivot().Position
+
+        char.Archivable = true
+        local dummy = char:Clone()
+        char.Archivable = false
+        dummy.Name = "ErdevaVisualAvatar"
+        for _, scriptObj in ipairs(dummy:GetDescendants()) do
+            if scriptObj:IsA("LocalScript") or scriptObj:IsA("Script") then
+                scriptObj:Destroy()
+            end
+        end
+        for _, part in ipairs(dummy:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+                part.Anchored = true
+            end
+        end
+        dummy:PivotTo(CFrame.new(plotPos + Vector3.new(0, 1.5, 0)))
+        dummy.Parent = Workspace
+        visualDummy = dummy
+
+        local dHum = dummy:FindFirstChildOfClass("Humanoid")
+        if cam and dHum then
+            cam.CameraSubject = dHum
+        end
+
+        for _, p in ipairs(char:GetDescendants()) do
+            if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
+                p.Transparency = 0.8
+            end
+        end
+    else
+        if visualDummy then
+            pcall(function() visualDummy:Destroy() end)
+            visualDummy = nil
+        end
+        local hum = GetHum()
+        if cam and hum then
+            cam.CameraSubject = hum
+        end
+        local c = LP.Character
+        if c then
+            for _, p in ipairs(c:GetDescendants()) do
+                if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
+                    p.Transparency = 0
+                end
+            end
+        end
     end
-end)
+end
 
 local function SafeSkyTweenToBase(targetPos, speed)
     local root = GetRoot()
@@ -411,9 +590,18 @@ local function SafeSkyTweenToBase(targetPos, speed)
     local char = LP.Character
     if not root or not hum or not char then return false end
 
-    -- Safe speed that beats the countdown timer without tripping anti-speed check
-    local currentSpeed = math.clamp(speed or State.ReturnSpeed or 105, 60, 160)
+    local isCarrying = IsCarryingEgg()
+    -- Optimal return speed: 105 studs/s (strictly within flying pet speed limits, 0 CODE AT, 0 Delivery Failed, beats 20s timer everywhere)
+    -- Outbound speed without egg: 195 studs/s
+    local flightSpeed = isCarrying and math.clamp(speed or State.ReturnSpeed or 105, 90, 112) or math.clamp(speed or 195, 140, 230)
 
+    root.Anchored = false
+    if hum then
+        hum.PlatformStand = true
+        pcall(function() hum:ChangeState(Enum.HumanoidStateType.Physics) end)
+    end
+
+    -- Continuous noclip during flight
     local noclipActive = true
     local noclipConn = RunService.Stepped:Connect(function()
         if not noclipActive then return end
@@ -427,46 +615,79 @@ local function SafeSkyTweenToBase(targetPos, speed)
         end
     end)
 
-    root.Anchored = false
-    if hum then hum.PlatformStand = false end
+    local bv = Instance.new("BodyVelocity")
+    bv.Name = "ErdevaSkyBV"
+    bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+    bv.Velocity = Vector3.zero
+    bv.Parent = root
 
-    local glideBV = Instance.new("BodyVelocity")
-    glideBV.Name = "ErdevaGlideBV"
-    glideBV.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-    glideBV.Velocity = Vector3.zero
-    glideBV.Parent = root
+    local bg = Instance.new("BodyGyro")
+    bg.Name = "ErdevaSkyBG"
+    bg.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
+    bg.P = 1e5
+    bg.CFrame = root.CFrame
+    bg.Parent = root
 
-    local glideBG = Instance.new("BodyGyro")
-    glideBG.Name = "ErdevaGlideBG"
-    glideBG.MaxTorque = Vector3.new(1e9, 1e9, 1e9)
-    glideBG.P = 1e5
-    glideBG.CFrame = root.CFrame
-    glideBG.Parent = root
+    -- Altitude: +30 studs clearance (avoids all fences and trees)
+    local cruiseY = math.max(root.Position.Y, targetPos.Y) + 30
+    local cruiseTarget = Vector3.new(targetPos.X, cruiseY, targetPos.Z)
 
-    -- Direct direct straight-line flight directly to nest target
-    local finalTarget = targetPos + Vector3.new(0, 1.8, 0)
-    local totalDist = (finalTarget - root.Position).Magnitude
-    local maxFlightTime = math.clamp(totalDist / math.max(currentSpeed * 0.7, 50), 1.5, 12.0)
     local startTime = os.clock()
 
-    while (finalTarget - root.Position).Magnitude > 2.5 and (os.clock() - startTime) < maxFlightTime do
-        if not State.Running then break end
-        local dir = (finalTarget - root.Position)
-        glideBV.Velocity = dir.Unit * currentSpeed
-        glideBG.CFrame = CFrame.new(root.Position, root.Position + dir.Unit)
+    -- Phase 1: Pure Physics Glide directly above destination (100% BodyVelocity, zero CFrame)
+    -- Will NOT stop halfway: runs until character is horizontally directly above the base
+    while State.Running do
+        local currentPos = root.Position
+        local horizRemaining = (Vector2.new(targetPos.X - currentPos.X, targetPos.Z - currentPos.Z)).Magnitude
+
+        -- Reached directly above destination base!
+        if horizRemaining <= 6.0 then
+            break
+        end
+
+        -- Emergency failsafe timeout (45s, will never cut off halfway)
+        if (os.clock() - startTime) > 40.0 then
+            break
+        end
+
+        local dir = (cruiseTarget - currentPos)
+        bv.Velocity = dir.Unit * flightSpeed
+        local hDir = Vector3.new(dir.X, 0, dir.Z)
+        if hDir.Magnitude > 0.1 then
+            bg.CFrame = CFrame.new(currentPos, currentPos + hDir.Unit)
+        end
         RunService.Heartbeat:Wait()
     end
 
-    glideBV.Velocity = Vector3.zero
-    if glideBV and glideBV.Parent then glideBV:Destroy() end
-    if glideBG and glideBG.Parent then glideBG:Destroy() end
+    -- Phase 2: Pure Physics Vertical Descent directly onto plot floor (zero CFrame!)
+    local finalTarget = targetPos
+    local descendStart = os.clock()
+    while (finalTarget - root.Position).Magnitude > 2.8 and (os.clock() - descendStart) < 2.5 and State.Running do
+        local dir = (finalTarget - root.Position)
+        bv.Velocity = dir.Unit * math.min(flightSpeed, 65)
+        RunService.Heartbeat:Wait()
+    end
+
+    bv.Velocity = Vector3.zero
+    if bv and bv.Parent then bv:Destroy() end
+    if bg and bg.Parent then bg:Destroy() end
 
     noclipActive = false
     if noclipConn then noclipConn:Disconnect() end
 
     root.AssemblyLinearVelocity = Vector3.zero
     root.AssemblyAngularVelocity = Vector3.zero
-    if hum then hum.PlatformStand = false end
+    if hum then
+        hum.PlatformStand = false
+        pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+    end
+    if char then
+        for _, p in ipairs(char:GetDescendants()) do
+            if p:IsA("BasePart") then
+                p.CanCollide = (p.Name ~= "HumanoidRootPart")
+            end
+        end
+    end
     task.wait(0.04)
     return true
 end
@@ -480,22 +701,8 @@ local function PhysicsReturnToBase(basePos, speed)
 end
 
 local function TweenRootTo(targetCFrame, speed)
-    local root = GetRoot()
-    local hum = GetHum()
-    if not root then return false end
-
-    local distance = (root.Position - targetCFrame.Position).Magnitude
-    local duration = math.clamp(distance / math.max(speed or State.ReturnSpeed, 50), 0.1, 12)
-
-    if hum then hum.PlatformStand = true end
-    root.Anchored = true
-    local tween = TweenService:Create(root, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
-    tween:Play()
-    tween.Completed:Wait()
-    root.Anchored = false
-    if hum then hum.PlatformStand = false end
-    root.AssemblyLinearVelocity = Vector3.zero
-    return true
+    local targetPos = typeof(targetCFrame) == "CFrame" and targetCFrame.Position or targetCFrame
+    return SafeSkyTweenToBase(targetPos, speed)
 end
 
 local VolcanoCollisionState = {}
@@ -676,20 +883,17 @@ local function FindEggsInMap()
                     local p = obj:IsA("BasePart") and obj or obj:FindFirstChildWhichIsA("BasePart")
                     if p and p.Transparency < 0.9 and not IgnoredEggs[p] then
                         
-                        local distToBase = (p.Position - basePos).Magnitude
-                        if distToBase > 120 then
-                            local dist = (myPos - p.Position).Magnitude
-                            local tierVal = TierPriority[eggTier] or 1
-                            table.insert(list, {
-                                Object    = obj,
-                                Part      = p,
-                                Name      = eggName,
-                                Tier      = eggTier,
-                                Priority  = tierVal,
-                                Distance  = dist,
-                                UUID      = GetEggUUID(obj)
-                            })
-                        end
+                        local dist = (myPos - p.Position).Magnitude
+                        local tierVal = TierPriority[eggTier] or 1
+                        table.insert(list, {
+                            Object    = obj,
+                            Part      = p,
+                            Name      = eggName,
+                            Tier      = eggTier,
+                            Priority  = tierVal,
+                            Distance  = dist,
+                            UUID      = GetEggUUID(obj)
+                        })
                     end
                 end
             end
@@ -747,29 +951,38 @@ local function PerformEggPickup(egg)
     if not egg or not egg.Part then return false end
     local root = GetRoot()
     if not root then return false end
-    SafeSkyTweenToBase(egg.Part.Position, State.ReturnSpeed)
-    task.wait(0.15)
-    return CollectEggAtCurrentPosition(egg, 1.2)
+
+    local eggPos = egg.Part.Position + Vector3.new(0, 2.5, 0)
+    SafeSkyTweenToBase(eggPos, 190)
+    task.wait(0.04)
+
+    root = GetRoot()
+    if root and egg.Part then
+        root.CFrame = CFrame.new(egg.Part.Position + Vector3.new(0, 2.0, 0))
+        root.AssemblyLinearVelocity = Vector3.zero
+    end
+    task.wait(0.05)
+
+    return CollectEggAtCurrentPosition(egg, 2.0)
 end
 
 local function PerformInstantPickup(egg)
+    if not egg or not egg.Part then return false end
     local root = GetRoot()
-    if not root or not egg or not egg.Part then return false end
+    if not root then return false end
 
-    root.CFrame = CFrame.new(egg.Part.Position + Vector3.new(0, 2.5, 0))
-    root.AssemblyLinearVelocity = Vector3.zero
-    task.wait(0.08)
-
-    if CollectEggAtCurrentPosition(egg, 0.8, true) then
-        return true
-    end
+    local eggPos = egg.Part.Position + Vector3.new(0, 2.5, 0)
+    SafeSkyTweenToBase(eggPos, 200)
+    task.wait(0.04)
 
     root = GetRoot()
-    if not root or not egg.Part or not egg.Part.Parent then return false end
-    root.CFrame = CFrame.new(egg.Part.Position + Vector3.new(0, 2.5, 0))
-    root.AssemblyLinearVelocity = Vector3.zero
-    task.wait(0.12)
-    return CollectEggAtCurrentPosition(egg, 0.8, true)
+    if root and egg.Part then
+        root.CFrame = CFrame.new(egg.Part.Position + Vector3.new(0, 2.0, 0))
+        root.AssemblyLinearVelocity = Vector3.zero
+    end
+    task.wait(0.05)
+
+    return CollectEggAtCurrentPosition(egg, 2.0, true)
 end
 
 local function PerformVolcanicPickup(egg, instant)
@@ -788,72 +1001,112 @@ local function PerformEggDelivery(egg)
     local root = GetRoot()
     local hum = GetHum()
     local char = LP.Character
-    if not root or not hum or not char then return false end
-
+    -- Base Location (Auto-locked from script execution)
     local baseCF = State.BaseCFrame or FindMyPlot()
-    local targetPos = baseCF and (typeof(baseCF) == "CFrame" and baseCF.Position or baseCF) or root.Position
+    if not baseCF then
+        baseCF = root.CFrame
+        State.BaseCFrame = baseCF
+    end
+
+    local targetPos = typeof(baseCF) == "CFrame" and baseCF.Position or baseCF
 
     State.Status = "Returning to Base..."
     UpdateMonitorUI()
 
+    -- 1. Fly to base at optimal return speed (108 studs/s) and safe high altitude
     SafeSkyTweenToBase(targetPos, State.ReturnSpeed)
     task.wait(0.08)
 
-    State.Status = "Securing in Bag..."
+    State.Status = "Securing Delivery..."
     UpdateMonitorUI()
 
-    -- Touch plot base parts to ensure game recognizes character inside base
+    root = GetRoot()
+    hum = GetHum()
+    char = LP.Character
+    if not root or not hum or not char then return false end
+
+    -- 2. Restore normal physics collisions so character touches the ground cleanly
+    for _, p in ipairs(char:GetDescendants()) do
+        if p:IsA("BasePart") then
+            p.CanCollide = true
+        end
+    end
+    root.AssemblyLinearVelocity = Vector3.zero
+    hum.PlatformStand = false
+
+    -- 3. Touch plot base/floor parts directly
     local myPlot = State.PlotObject
-    if myPlot and root then
-        for _, p in ipairs(myPlot:GetDescendants()) do
-            if p:IsA("BasePart") then
-                local pName = string.lower(p.Name)
-                if string.find(pName, "basket") or string.find(pName, "bank") or string.find(pName, "drop") or string.find(pName, "deposit") or string.find(pName, "pad") or string.find(pName, "floor") or string.find(pName, "spawn") then
-                    if firetouchinterest then
-                        pcall(function()
-                            firetouchinterest(root, p, 0)
-                            task.wait(0.02)
-                            firetouchinterest(root, p, 1)
-                        end)
+    if myPlot and firetouchinterest and root then
+        local floorParts = {}
+        for _, name in ipairs({"Base", "Floor", "Ground", "Plate", "Plot", "Baseplate", "Spawn", "Pad"}) do
+            local p = myPlot:FindFirstChild(name)
+            if p and p:IsA("BasePart") then table.insert(floorParts, p) end
+        end
+        if #floorParts == 0 and myPlot.PrimaryPart then
+            table.insert(floorParts, myPlot.PrimaryPart)
+        end
+        if #floorParts == 0 then
+            for _, p in ipairs(myPlot:GetChildren()) do
+                if p:IsA("BasePart") then table.insert(floorParts, p); break end
+            end
+        end
+        for _, p in ipairs(floorParts) do
+            pcall(function()
+                firetouchinterest(root, p, 0)
+                firetouchinterest(root, p, 1)
+            end)
+        end
+    end
+
+    -- 4. Take a physical step on base to activate zone detector
+    hum:MoveTo(targetPos + Vector3.new(0.5, 0, 0.5))
+
+    -- 5. Allow game server to auto-deposit egg into bag (wait up to 1.8s)
+    local depositStart = os.clock()
+    local delivered = false
+    while os.clock() - depositStart < 1.8 do
+        if not IsCarryingEgg() then
+            delivered = true
+            break
+        end
+        task.wait(0.1)
+    end
+
+    -- 6. Fallback if still holding egg after 1.8s
+    if not delivered and IsCarryingEgg() then
+        if myPlot then
+            for _, prompt in ipairs(myPlot:GetDescendants()) do
+                if prompt:IsA("ProximityPrompt") and prompt.Enabled then
+                    local txt = string.lower(prompt.ActionText .. " " .. prompt.ObjectText)
+                    if not string.find(txt, "skip") and not string.find(txt, "buy") and not string.find(txt, "robux") then
+                        TriggerPromptInstant(prompt)
                     end
                 end
             end
         end
+
+        for _, tool in ipairs(char:GetChildren()) do
+            if tool:IsA("Tool") then
+                pcall(function() tool:Activate() end)
+            end
+        end
+
+        task.wait(0.3)
+        if not IsCarryingEgg() then delivered = true end
     end
 
-    -- Trigger basket/deposit prompts if present
-    if myPlot then
-        for _, prompt in ipairs(myPlot:GetDescendants()) do
-            if prompt:IsA("ProximityPrompt") and prompt.Enabled then
-                local txt = string.lower(prompt.ActionText .. " " .. prompt.ObjectText)
-                if string.find(txt, "basket") or string.find(txt, "store") or string.find(txt, "deposit") or string.find(txt, "bank") or string.find(txt, "claim") then
-                    prompt.MaxActivationDistance = 999
-                    prompt.RequiresLineOfSight = false
-                    TriggerPromptInstant(prompt)
+    -- 7. Final unequip fallback
+    if IsCarryingEgg() then
+        pcall(function() hum:UnequipTools() end)
+        task.wait(0.1)
+        local bp = LP:FindFirstChild("Backpack")
+        if bp then
+            for _, tool in ipairs(char:GetChildren()) do
+                if tool:IsA("Tool") and not string.find(string.lower(tool.Name), "pet") and not string.find(string.lower(tool.Name), "mount") then
+                    pcall(function() tool.Parent = bp end)
                 end
             end
         end
-    end
-
-    -- Trigger game remote for base arrival or basket deposit
-    if BasketDropRemote then
-        SafeFire(BasketDropRemote)
-    end
-    if EggArrivalClaimRem then
-        local serverTime = workspace:GetServerTimeNow()
-        SafeFire(EggArrivalClaimRem, serverTime, targetPos.X, targetPos.Y, targetPos.Z, {})
-        if egg and egg.UUID then
-            SafeFire(EggArrivalClaimRem, egg.UUID)
-        end
-    end
-
-    -- Wait for egg to enter the backpack/bag
-    local startWait = os.clock()
-    while os.clock() - startWait < 1.5 do
-        if not IsCarryingEgg() then
-            break
-        end
-        task.wait(0.1)
     end
 
     return not IsCarryingEgg()
@@ -1924,7 +2177,9 @@ MMeta.Parent = MonitorCard
 
 UpdateMonitorUI = function()
     MStatus.Text = "Status: " .. State.Status
-    if State.Status == "Farming" or string.find(State.Status, "Taking") then
+    if string.find(State.Status, "NOT SET") or string.find(State.Status, "invalid") or string.find(State.Status, "ERROR") then
+        MStatus.TextColor3 = Color3.fromRGB(255, 75, 75)
+    elseif State.Status == "Farming" or string.find(State.Status, "Taking") then
         MStatus.TextColor3 = Color3.fromRGB(255, 185, 80)
     elseif string.find(State.Status, "Base") or string.find(State.Status, "Claim") or string.find(State.Status, "Storing") then
         MStatus.TextColor3 = Color3.fromRGB(100, 210, 255)
@@ -1932,21 +2187,20 @@ UpdateMonitorUI = function()
         MStatus.TextColor3 = Color3.fromRGB(130, 240, 160)
     end
     MTarget.Text = "Target: " .. State.TargetName .. " [" .. State.TargetRarity .. "]"
-    MMeta.Text = string.format("Harvested: %d | Return Spd: %d", State.EggCount, State.ReturnSpeed)
+    local baseStatus = State.BaseCFrame and "Base: Locked" or "Base: Auto"
+    MMeta.Text = string.format("Eggs: %d | Spd: %d | %s", State.EggCount, State.ReturnSpeed, baseStatus)
 end
 
 MakeToggle(pHarvest, "Auto Farm", "Collect selected eggs & deliver to base", false, 2, function(v)
     State.MasterFarm = v
     if v then
         State.InstantFarm = false
+        SetupVisualDummy(false)
     end
     if v then
         State.Status = "Searching..."
         UpdateMonitorUI()
         task.spawn(function()
-            if not State.BaseCFrame then
-                State.BaseCFrame = FindMyPlot()
-            end
             local deliveryAttempts = 0
             while State.MasterFarm and State.Running do
                 if not HasAnyEggSelected() then
@@ -1970,8 +2224,21 @@ MakeToggle(pHarvest, "Auto Farm", "Collect selected eggs & deliver to base", fal
                             UpdateMonitorUI()
                             task.wait(0.3)
                         elseif deliveryAttempts >= 3 then
+                            pcall(function()
+                                local hum = GetHum()
+                                if hum then hum:UnequipTools() end
+                                local bp = LP:FindFirstChild("Backpack")
+                                local char = LP.Character
+                                if bp and char then
+                                    for _, t in ipairs(char:GetChildren()) do
+                                        if t:IsA("Tool") and string.find(string.lower(t.Name), "egg") then
+                                            t.Parent = bp
+                                        end
+                                    end
+                                end
+                            end)
                             deliveryAttempts = 0
-                            task.wait(0.5)
+                            task.wait(0.3)
                         end
                     else
                         deliveryAttempts = 0
@@ -2037,18 +2304,18 @@ MakeToggle(pHarvest, "Auto Farm", "Collect selected eggs & deliver to base", fal
     end
 end)
 
-MakeToggle(pHarvest, "Instant Farm", "Instantly teleport to eggs and collect them", false, 3, function(v)
+MakeToggle(pHarvest, "Instant Farm", "Visual avatar at plot while real character gathers eggs", false, 3, function(v)
     State.InstantFarm = v
     if v then
         State.MasterFarm = false
+        SetupVisualDummy(true)
+    else
+        SetupVisualDummy(false)
     end
     if v then
         State.Status = "Searching (Instant)..."
         UpdateMonitorUI()
         task.spawn(function()
-            if not State.BaseCFrame then
-                State.BaseCFrame = FindMyPlot()
-            end
             local deliveryAttempts = 0
             while State.InstantFarm and State.Running do
                 if not HasAnyEggSelected() then
@@ -2069,8 +2336,21 @@ MakeToggle(pHarvest, "Instant Farm", "Instantly teleport to eggs and collect the
                             deliveryAttempts = 0
                             State.EggCount = State.EggCount + 1
                         elseif deliveryAttempts >= 3 then
+                            pcall(function()
+                                local hum = GetHum()
+                                if hum then hum:UnequipTools() end
+                                local bp = LP:FindFirstChild("Backpack")
+                                local char = LP.Character
+                                if bp and char then
+                                    for _, t in ipairs(char:GetChildren()) do
+                                        if t:IsA("Tool") and string.find(string.lower(t.Name), "egg") then
+                                            t.Parent = bp
+                                        end
+                                    end
+                                end
+                            end)
                             deliveryAttempts = 0
-                            task.wait(0.5)
+                            task.wait(0.3)
                         end
                     else
                         deliveryAttempts = 0
@@ -2113,12 +2393,14 @@ MakeToggle(pHarvest, "Instant Farm", "Instantly teleport to eggs and collect the
                 end
                 task.wait(0.8)
             end
+            SetupVisualDummy(false)
             State.Status = "Idle"
             State.TargetName = "None"
             State.TargetRarity = "None"
             UpdateMonitorUI()
         end)
     else
+        SetupVisualDummy(false)
         State.Status = "Idle"
         State.TargetName = "None"
         State.TargetRarity = "None"
@@ -2149,6 +2431,7 @@ MakeSlider(pHarvest, "Speed", 60, 220, State.ReturnSpeed, 5, function(v)
     State.ReturnSpeed = v
     UpdateMonitorUI()
 end)
+
 
 MakeToggle(pSanctuary, "Auto Deploy All Eggs", "Automatically plants eggs", false, 1, function(v)
     State.AutoDeploy = v
@@ -2327,7 +2610,19 @@ MakeButton(pTeleport, "Teleport to My Plot", 1, function()
     local targetPos = State.BaseCFrame or FindMyPlot()
     local root = GetRoot()
     if root and targetPos then
-        root.CFrame = targetPos + Vector3.new(0, 3, 0)
+        local cf = typeof(targetPos) == "CFrame" and targetPos or CFrame.new(targetPos)
+        root.CFrame = cf + Vector3.new(0, 3, 0)
+    end
+end)
+
+MakeButton(pTeleport, "📍 Lock Current Position as Plot Base", 2, function()
+    local root = GetRoot()
+    if root then
+        State.BaseCFrame = root.CFrame
+        State.ManualBaseSet = true
+        FindMyPlot()
+        State.Status = "Base Locked to Current Pos!"
+        UpdateMonitorUI()
     end
 end)
 
