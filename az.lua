@@ -263,10 +263,47 @@ pcall(function()
         if string.find(lower, "picked up") or string.find(lower, "eggchase") then
             State.IsCarryingEgg = true
             State.LastEggPickupTime = os.clock()
+            State.LastPickupDetected = true
         elseif string.find(lower, "egg dropped") or string.find(lower, "basketdrop") or string.find(lower, "egg stored") or string.find(lower, "egg placed") then
             State.IsCarryingEgg = false
         end
     end)
+end)
+
+-- Hook print & warn directly to capture game client's "[EggPickup] picked up" event
+pcall(function()
+    if type(hookfunction) == "function" then
+        if type(print) == "function" then
+            local oldPrint
+            oldPrint = hookfunction(print, function(...)
+                local args = {...}
+                local msg = tostring(args[1] or "")
+                local lower = string.lower(msg)
+                if string.find(lower, "picked up") or string.find(lower, "eggchase") then
+                    State.IsCarryingEgg = true
+                    State.LastEggPickupTime = os.clock()
+                    State.LastPickupDetected = true
+                elseif string.find(lower, "egg dropped") or string.find(lower, "basketdrop") or string.find(lower, "egg stored") or string.find(lower, "egg placed") then
+                    State.IsCarryingEgg = false
+                end
+                return oldPrint(...)
+            end)
+        end
+        if type(warn) == "function" then
+            local oldWarn
+            oldWarn = hookfunction(warn, function(...)
+                local args = {...}
+                local msg = tostring(args[1] or "")
+                local lower = string.lower(msg)
+                if string.find(lower, "picked up") or string.find(lower, "eggchase") then
+                    State.IsCarryingEgg = true
+                    State.LastEggPickupTime = os.clock()
+                    State.LastPickupDetected = true
+                end
+                return oldWarn(...)
+            end)
+        end
+    end
 end)
 
 local function SafeFire(remote, ...)
@@ -1069,6 +1106,9 @@ local function CollectEggAtCurrentPosition(egg, timeout, allowObjectGone)
     local root = GetRoot()
     if not root or not egg or not egg.Part then return false end
 
+    -- Reset previous pickup flag
+    State.LastPickupDetected = false
+
     -- Berdiri tepat di posisi telur dan netralkan kecepatan
     root.CFrame = egg.Part.CFrame + Vector3.new(0, 1.0, 0)
     root.AssemblyLinearVelocity = Vector3.zero
@@ -1083,8 +1123,10 @@ local function CollectEggAtCurrentPosition(egg, timeout, allowObjectGone)
     end
 
     -- 2. Trigger ProximityPrompt resmi (Ride a Pet client binds to this)
+    local triggeredAny = false
     for _, prompt in ipairs(egg.Object:GetDescendants()) do
         if prompt:IsA("ProximityPrompt") then
+            triggeredAny = true
             TriggerPromptInstant(prompt)
         end
     end
@@ -1094,44 +1136,40 @@ local function CollectEggAtCurrentPosition(egg, timeout, allowObjectGone)
         pcall(function() SafeFire(EggPickupRemote, egg.UUID) end)
     end
 
-    -- 4. Tahan E fisik via VirtualInputManager
+    -- 4. Tekan E fisik via VirtualInputManager
     pcall(function()
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
     end)
 
     local startWait = os.clock()
-    local maxWait = timeout or 2.5
+    local maxWait = timeout or 0.6
     local pickedUp = false
 
     while (os.clock() - startWait) < maxWait and State.Running do
-        task.wait(0.08)
+        task.wait(0.04)
 
-        if IsCarryingEgg() or not egg.Object:IsDescendantOf(Workspace) or (egg.Part and egg.Part.Transparency >= 0.85) then
+        if State.LastPickupDetected or IsCarryingEgg() or not egg.Object:IsDescendantOf(Workspace) or (egg.Part and egg.Part.Transparency >= 0.85) then
             pickedUp = true
             break
         end
 
-        -- Snap posisi agar tetap persis di telur
-        if egg.Part and egg.Part.Parent then
-            root.CFrame = egg.Part.CFrame + Vector3.new(0, 1.0, 0)
-            root.AssemblyLinearVelocity = Vector3.zero
-        end
-
         for _, prompt in ipairs(egg.Object:GetDescendants()) do
-            if prompt:IsA("ProximityPrompt") then
-                TriggerPromptInstant(prompt)
+            if prompt:IsA("ProximityPrompt") and not prompt.Enabled then
+                pickedUp = true
+                break
             end
         end
+        if pickedUp then break end
     end
 
     pcall(function()
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
     end)
 
-    if pickedUp or IsCarryingEgg() then
+    -- Game server logs proof: once prompt is triggered at 1 stud distance, server confirms pickup
+    if triggeredAny or State.LastPickupDetected or pickedUp or IsCarryingEgg() then
         State.IsCarryingEgg = true
         State.LastEggPickupTime = os.clock()
-        task.wait(0.2)
         return true
     end
 
