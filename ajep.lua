@@ -239,7 +239,7 @@ local State = {
     EggESP       = false,
     Flying       = false,
     FlySpeed     = 75,
-    ReturnSpeed  = 80,
+    ReturnSpeed  = 220,
     WalkSpeed    = 16,
     JumpPower    = 50,
     BaseCFrame   = execBaseCFrame,
@@ -247,12 +247,27 @@ local State = {
     ManualBaseSet= execBaseCFrame ~= nil,
     Running      = true,
     StayAtBase   = true,
+    IsCarryingEgg = false,
+    LastEggPickupTime = 0,
     SelectedEggs = {}
 }
 
 for _, item in ipairs(AllEggList) do
     State.SelectedEggs[item.name] = false
 end
+
+-- Monitor console logs for official [EggPickup] and [EggChase] events
+pcall(function()
+    game:GetService("LogService").MessageOut:Connect(function(msg, msgType)
+        local lower = string.lower(msg)
+        if string.find(lower, "picked up") or string.find(lower, "eggchase") then
+            State.IsCarryingEgg = true
+            State.LastEggPickupTime = os.clock()
+        elseif string.find(lower, "egg dropped") or string.find(lower, "basketdrop") or string.find(lower, "egg stored") or string.find(lower, "egg placed") then
+            State.IsCarryingEgg = false
+        end
+    end)
+end)
 
 local function SafeFire(remote, ...)
     if remote then
@@ -323,48 +338,50 @@ local function ClickOrActivateEgg()
 end
 
 local function IsCarryingEgg()
-    local char = LP.Character
-    if not char then return false end
-
-    -- Check 1: Tool in Character that is explicitly an Egg
-    for _, tool in ipairs(char:GetChildren()) do
-        if tool:IsA("Tool") then
-            local n = string.lower(tool.Name)
-            if string.find(n, "egg") or tool:HasTag("Egg") or tool:GetAttribute("EggInventoryId") ~= nil then
-                return true
-            end
+    -- 1. Direct state tracked from pickup or LogService [EggChase] / [EggPickup] picked up
+    if State.IsCarryingEgg then
+        if os.clock() - (State.LastEggPickupTime or 0) > 35 then
+            State.IsCarryingEgg = false
+            return false
         end
+        return true
     end
 
-    -- Check 2: Model or Part attached to character that is an Egg (e.g. egg held in hands)
-    for _, item in ipairs(char:GetChildren()) do
-        if (item:IsA("Model") or item:IsA("BasePart")) and item ~= char and item.Name ~= "HumanoidRootPart" then
-            local n = string.lower(item.Name)
-            if string.find(n, "egg") and not string.find(n, "nest") and not string.find(n, "pet") and not string.find(n, "mount") then
-                return true
-            end
-        end
-    end
-
-    -- Check 3: Welds on character explicitly attached to an egg part
-    for _, d in ipairs(char:GetDescendants()) do
-        if d:IsA("WeldConstraint") or d:IsA("Weld") then
-            local p0, p1 = d.Part0, d.Part1
-            local other = (p0 and not p0:IsDescendantOf(char) and p0) or (p1 and not p1:IsDescendantOf(char) and p1)
-            if other then
-                local on = string.lower(other.Name)
-                if string.find(on, "egg") and not string.find(on, "nest") and not string.find(on, "pet") then
-                    return true
+    -- 2. Check UI in PlayerGui for active Chase timer (e.g. "home on your screen with 29.7s left")
+    local pgui = LP:FindFirstChild("PlayerGui")
+    if pgui then
+        for _, gui in ipairs(pgui:GetChildren()) do
+            if gui:IsA("ScreenGui") and gui.Enabled then
+                local gName = string.lower(gui.Name)
+                if string.find(gName, "chase") or string.find(gName, "egg") or string.find(gName, "carry") then
+                    for _, desc in ipairs(gui:GetDescendants()) do
+                        if desc:IsA("TextLabel") and desc.Visible then
+                            local t = string.lower(desc.Text)
+                            if string.find(t, "left") or string.find(t, "home") then
+                                State.IsCarryingEgg = true
+                                State.LastEggPickupTime = os.clock()
+                                return true
+                            end
+                        end
+                    end
                 end
             end
         end
     end
 
-    -- Check 4: Character attributes for carrying egg
-    for attName, attVal in pairs(char:GetAttributes()) do
-        local an = string.lower(attName)
-        if (string.find(an, "carryingegg") or string.find(an, "holdingegg") or string.find(an, "hasegg")) and attVal == true then
-            return true
+    -- 3. Check Character for Chase Egg Model (ONLY models with egg name, excluding accessories, hats, pets, nests)
+    local char = LP.Character
+    if char then
+        for _, item in ipairs(char:GetChildren()) do
+            if item:IsA("Model") and not item:FindFirstChildOfClass("Humanoid") then
+                local iname = string.lower(item.Name)
+                if (string.find(iname, "egg") or item:GetAttribute("Egg") or item:HasTag("Egg"))
+                   and not string.find(iname, "nest") and not string.find(iname, "pet") and not string.find(iname, "mount") and not string.find(iname, "hat") then
+                    if item:FindFirstChildWhichIsA("BasePart") then
+                        return true
+                    end
+                end
+            end
         end
     end
 
@@ -571,6 +588,22 @@ local function GetEggUUID(eggObj)
             return child.Name
         end
     end
+
+    -- Match by position against ReplicatedStorage.ServerData.ActiveEggs
+    local ae = RS:FindFirstChild("ServerData") and RS.ServerData:FindFirstChild("ActiveEggs")
+    if ae then
+        local p = eggObj:IsA("BasePart") and eggObj.Position
+            or (eggObj.PrimaryPart and eggObj.PrimaryPart.Position)
+            or (eggObj:FindFirstChildWhichIsA("BasePart") and eggObj:FindFirstChildWhichIsA("BasePart").Position)
+        if p then
+            for _, cfg in ipairs(ae:GetChildren()) do
+                local cfgPos = cfg:GetAttribute("Position") or (cfg:FindFirstChild("Position") and cfg.Position.Value)
+                if cfgPos and (cfgPos - p).Magnitude < 12 then
+                    return cfg.Name
+                end
+            end
+        end
+    end
     return nil
 end
 
@@ -667,30 +700,35 @@ local function UndergroundReturnToBase(targetPos, speed)
         end
     end)
 
+    -- Safe underground altitude (-22 studs, safely above FallenPartsDestroyHeight)
+    local voidLimit = (Workspace.FallenPartsDestroyHeight or -500) + 70
+    local undergroundY = math.clamp(math.min(root.Position.Y, targetV3.Y) - 22, voidLimit, 10000)
+
+    root.Anchored = false
+    if hum then
+        hum.PlatformStand = true
+    end
+
+    local bv = Instance.new("BodyVelocity")
+    bv.Name = "ErdevaUnderBV"
+    bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+    bv.Velocity = Vector3.zero
+    bv.Parent = root
+
     root.AssemblyLinearVelocity = Vector3.zero
     root.AssemblyAngularVelocity = Vector3.zero
 
-    -- Safe underground altitude (-20 studs, safely above FallenPartsDestroyHeight)
-    local voidLimit = (Workspace.FallenPartsDestroyHeight or -500) + 70
-    local undergroundY = math.clamp(math.min(root.Position.Y, targetV3.Y) - 20, voidLimit, 10000)
-
-    if hum then
-        hum.PlatformStand = true
-        pcall(function() hum:ChangeState(Enum.HumanoidStateType.Physics) end)
-    end
-    root.Anchored = false
-
-    -- Phase A: Smooth dive down under the map (~0.25s)
+    -- Phase A: Quick dive down under the map (~0.18s)
     local diveTarget = Vector3.new(root.Position.X, undergroundY, root.Position.Z)
-    local diveTw = TweenService:Create(root, TweenInfo.new(0.25, Enum.EasingStyle.Linear), {CFrame = CFrame.new(diveTarget)})
+    local diveTw = TweenService:Create(root, TweenInfo.new(0.18, Enum.EasingStyle.Linear), {CFrame = CFrame.new(diveTarget)})
     diveTw:Play()
     diveTw.Completed:Wait()
 
     -- Phase B: Underground Linear Tween to below plot/nest
-    -- Travel at a realistic speed (110-130 studs/s) so server EggChase accepts delivery (3-5s travel time vs 30s timer)
+    -- SPEED: 220-250 studs/s, travel time only 3-5 seconds (leaves >24s of egg timer intact!)
     local distUnder = (Vector2.new(targetV3.X - root.Position.X, targetV3.Z - root.Position.Z)).Magnitude
-    local returnSpeed = math.clamp(speed or State.ReturnSpeed or 115, 85, 145)
-    local travelDuration = math.clamp(distUnder / returnSpeed, 0.5, 7.5)
+    local returnSpeed = math.clamp(speed or State.ReturnSpeed or 220, 180, 260)
+    local travelDuration = math.clamp(distUnder / returnSpeed, 0.4, 5.5)
 
     local undergroundBasePos = Vector3.new(targetV3.X, undergroundY, targetV3.Z)
     local transTw = TweenService:Create(root, TweenInfo.new(travelDuration, Enum.EasingStyle.Linear), {CFrame = CFrame.new(undergroundBasePos)})
@@ -704,19 +742,20 @@ local function UndergroundReturnToBase(targetPos, speed)
             transTw:Cancel()
             break
         end
-        task.wait(0.04)
+        task.wait(0.03)
     end
 
-    -- Phase C: Smooth ascend up directly onto plot floor / nest (~0.25s)
+    -- Phase C: Quick ascend up directly onto plot baseplate (~0.18s)
     local ascendTarget = CFrame.new(targetV3 + Vector3.new(0, 1.8, 0))
-    local ascendTw = TweenService:Create(root, TweenInfo.new(0.25, Enum.EasingStyle.Linear), {CFrame = ascendTarget})
+    local ascendTw = TweenService:Create(root, TweenInfo.new(0.18, Enum.EasingStyle.Linear), {CFrame = ascendTarget})
     ascendTw:Play()
     ascendTw.Completed:Wait()
+
+    if bv and bv.Parent then bv:Destroy() end
 
     root.AssemblyLinearVelocity = Vector3.zero
     root.AssemblyAngularVelocity = Vector3.zero
 
-    -- Bersihkan noclip dan pulihkan status humanoid
     noclipActive = false
     if noclipConn then noclipConn:Disconnect() end
 
@@ -730,16 +769,6 @@ local function UndergroundReturnToBase(targetPos, speed)
                 p.CanCollide = (p.Name ~= "HumanoidRootPart")
             end
         end
-    end
-
-    -- Natural micro-steps directly into plot center
-    local approachStart = os.clock()
-    while (targetPos - root.Position).Magnitude > 1.5 and (os.clock() - approachStart) < 0.6 and State.Running do
-        local diff = targetPos - root.Position
-        local step = diff.Unit * math.min(diff.Magnitude, 3.0)
-        root.CFrame = root.CFrame + step
-        root.AssemblyLinearVelocity = Vector3.zero
-        RunService.Heartbeat:Wait()
     end
 
     task.wait(0.04)
@@ -756,11 +785,11 @@ local function TweenToEgg(targetPos, speed)
     local dist = (targetV3 - root.Position).Magnitude
     if dist < 3 then return true end
 
-    -- Safe tween speed so server registers continuous natural movement
-    local moveSpeed = math.clamp(speed or State.ReturnSpeed or 110, 80, 160)
-    local duration = math.clamp(dist / moveSpeed, 0.4, 12.0)
+    -- Smooth tween speed (140-160 studs/s) so server receives real continuous movement packets
+    local moveSpeed = math.clamp(speed or 150, 100, 180)
+    local duration = math.clamp(dist / moveSpeed, 0.4, 10.0)
 
-    -- Continuous noclip during flight so character glides straight through obstacles
+    -- Continuous noclip so character glides straight through obstacles
     local noclipActive = true
     local noclipConn = RunService.Stepped:Connect(function()
         if not noclipActive then return end
@@ -774,11 +803,22 @@ local function TweenToEgg(targetPos, speed)
         end
     end)
 
+    -- DO NOT ANCHOR! An unanchored root with anti-gravity BodyVelocity ensures real physics replication to server!
+    root.Anchored = false
+    if hum then
+        hum.PlatformStand = true
+    end
+
+    local bv = Instance.new("BodyVelocity")
+    bv.Name = "ErdevaEggTweenBV"
+    bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+    bv.Velocity = Vector3.zero
+    bv.Parent = root
+
     root.AssemblyLinearVelocity = Vector3.zero
     root.AssemblyAngularVelocity = Vector3.zero
-    root.Anchored = true
 
-    local endCF = CFrame.new(targetV3 + Vector3.new(0, 1.2, 0))
+    local endCF = CFrame.new(targetV3 + Vector3.new(0, 1.0, 0))
     local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
     local tw = TweenService:Create(root, tweenInfo, {CFrame = endCF})
     tw:Play()
@@ -789,17 +829,19 @@ local function TweenToEgg(targetPos, speed)
             tw:Cancel()
             break
         end
-        task.wait(0.04)
+        task.wait(0.03)
     end
 
-    root.Anchored = false
+    if bv and bv.Parent then bv:Destroy() end
+    if hum then hum.PlatformStand = false end
+
     root.AssemblyLinearVelocity = Vector3.zero
     root.AssemblyAngularVelocity = Vector3.zero
 
     noclipActive = false
     if noclipConn then noclipConn:Disconnect() end
 
-    task.wait(0.05)
+    task.wait(0.04)
     return true
 end
 
@@ -1028,7 +1070,7 @@ local function CollectEggAtCurrentPosition(egg, timeout, allowObjectGone)
     if not root or not egg or not egg.Part then return false end
 
     -- Berdiri tepat di posisi telur dan netralkan kecepatan
-    root.CFrame = egg.Part.CFrame + Vector3.new(0, 1.2, 0)
+    root.CFrame = egg.Part.CFrame + Vector3.new(0, 1.0, 0)
     root.AssemblyLinearVelocity = Vector3.zero
     root.AssemblyAngularVelocity = Vector3.zero
 
@@ -1040,16 +1082,16 @@ local function CollectEggAtCurrentPosition(egg, timeout, allowObjectGone)
         end)
     end
 
-    -- 2. Trigger ProximityPrompt resmi
+    -- 2. Trigger ProximityPrompt resmi (Ride a Pet client binds to this)
     for _, prompt in ipairs(egg.Object:GetDescendants()) do
         if prompt:IsA("ProximityPrompt") then
             TriggerPromptInstant(prompt)
         end
     end
 
-    -- 3. Tembak remote resmi (1 kali saja sesuai nama telur / config)
-    if EggPickupRemote and egg.Object then
-        pcall(function() SafeFire(EggPickupRemote, egg.Object.Name) end)
+    -- 3. Tembak remote resmi HANYA jika UUID valid (bukan nama display seperti Aurora Egg)
+    if EggPickupRemote and egg.UUID and egg.UUID ~= "" and string.find(egg.UUID, "%x%x%x%x") then
+        pcall(function() SafeFire(EggPickupRemote, egg.UUID) end)
     end
 
     -- 4. Tahan E fisik via VirtualInputManager
@@ -1058,28 +1100,27 @@ local function CollectEggAtCurrentPosition(egg, timeout, allowObjectGone)
     end)
 
     local startWait = os.clock()
-    local maxWait = timeout or 3.0
+    local maxWait = timeout or 2.5
     local pickedUp = false
 
     while (os.clock() - startWait) < maxWait and State.Running do
-        task.wait(0.1)
-
-        -- Snap posisi agar tidak tergeser sebelum telur masuk tangan
-        if egg.Part and egg.Part.Parent then
-            root.CFrame = egg.Part.CFrame + Vector3.new(0, 1.2, 0)
-            root.AssemblyLinearVelocity = Vector3.zero
-        end
-
-        -- Trigger ulang prompt jika belum terambil
-        for _, prompt in ipairs(egg.Object:GetDescendants()) do
-            if prompt:IsA("ProximityPrompt") then
-                TriggerPromptInstant(prompt)
-            end
-        end
+        task.wait(0.08)
 
         if IsCarryingEgg() or not egg.Object:IsDescendantOf(Workspace) or (egg.Part and egg.Part.Transparency >= 0.85) then
             pickedUp = true
             break
+        end
+
+        -- Snap posisi agar tetap persis di telur
+        if egg.Part and egg.Part.Parent then
+            root.CFrame = egg.Part.CFrame + Vector3.new(0, 1.0, 0)
+            root.AssemblyLinearVelocity = Vector3.zero
+        end
+
+        for _, prompt in ipairs(egg.Object:GetDescendants()) do
+            if prompt:IsA("ProximityPrompt") then
+                TriggerPromptInstant(prompt)
+            end
         end
     end
 
@@ -1087,9 +1128,10 @@ local function CollectEggAtCurrentPosition(egg, timeout, allowObjectGone)
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
     end)
 
-    if pickedUp then
-        -- KUNCI UTAMA: Berikan jeda 0.35s di lokasi telur agar server selesai memasang WELD telur ke karakter
-        task.wait(0.35)
+    if pickedUp or IsCarryingEgg() then
+        State.IsCarryingEgg = true
+        State.LastEggPickupTime = os.clock()
+        task.wait(0.2)
         return true
     end
 
@@ -1101,8 +1143,8 @@ local function PerformEggPickup(egg)
     local root = GetRoot()
     if not root then return false end
 
-    local eggPos = egg.Part.Position + Vector3.new(0, 1.2, 0)
-    TweenToEgg(eggPos, 140)
+    local eggPos = egg.Part.Position + Vector3.new(0, 1.0, 0)
+    TweenToEgg(eggPos, 150)
     task.wait(0.04)
 
     return CollectEggAtCurrentPosition(egg, 2.5, true)
@@ -1113,8 +1155,7 @@ local function PerformInstantPickup(egg)
     local root = GetRoot()
     if not root then return false end
 
-    local eggPos = egg.Part.Position + Vector3.new(0, 1.2, 0)
-    -- Wajib Tween (bukan teleport) agar server memvalidasi pergerakan dan prompt telur bisa diambil!
+    local eggPos = egg.Part.Position + Vector3.new(0, 1.0, 0)
     TweenToEgg(eggPos, 160)
     task.wait(0.04)
 
@@ -1124,7 +1165,7 @@ end
 local function PerformVolcanicPickup(egg, instant)
     if not EnterVolcano() then return false end
 
-    State.Status = "Teleporting to Volcanic Egg..."
+    State.Status = "Volcano Farming..."
     UpdateMonitorUI()
     local success = PerformInstantPickup(egg)
     if success or IsCarryingEgg() then
@@ -1142,11 +1183,11 @@ local function PerformEggDelivery(egg)
     local deliveryCF = GetPlotDeliveryCFrame()
     local targetPos = typeof(deliveryCF) == "CFrame" and deliveryCF.Position or deliveryCF
 
-    State.Status = "Underground Returning..."
+    State.Status = "Fast Return to Base..."
     UpdateMonitorUI()
 
-    -- 1. Underground Tween ke base / plot (3-5 detik, waktu tempuh valid agar server menerima telur)
-    UndergroundReturnToBase(targetPos, State.ReturnSpeed or 115)
+    -- 1. Underground Tween ke base / plot (3-5 detik, cepat dan aman dari 30s timer batas telur pecah)
+    UndergroundReturnToBase(targetPos, State.ReturnSpeed or 220)
     task.wait(0.04)
 
     State.Status = "Securing Delivery..."
@@ -1155,21 +1196,19 @@ local function PerformEggDelivery(egg)
     root = GetRoot()
     hum = GetHum()
     char = LP.Character
-    if not root or not hum or not char then return false end
-
-    -- 2. Restore normal physics collisions
-    for _, p in ipairs(char:GetDescendants()) do
-        if p:IsA("BasePart") then
-            p.CanCollide = (p.Name ~= "HumanoidRootPart")
-        end
+    if not root or not hum or not char then
+        State.IsCarryingEgg = false
+        return false
     end
-    root.AssemblyLinearVelocity = Vector3.zero
-    hum.PlatformStand = false
 
-    -- 3. Touch plot delivery parts (Touch, Hitbox, Base, Spawn)
+    -- 2. Snap firmly on plot baseplate
+    root.CFrame = CFrame.new(targetPos + Vector3.new(0, 1.5, 0))
+    root.AssemblyLinearVelocity = Vector3.zero
+
+    -- 3. Touch plot delivery parts (Touch, Hitbox, Baseplate, Spawn)
     if myPlot and type(firetouchinterest) == "function" then
         for _, part in ipairs(myPlot:GetDescendants()) do
-            if part:IsA("BasePart") and (part.Name == "Touch" or part.Name == "Hitbox" or part.Name == "Spawn" or part.Name == "Floor" or part.Name == "Base" or part.CanTouch) then
+            if part:IsA("BasePart") and (part.Name == "Touch" or part.Name == "Hitbox" or part.Name == "Baseplate" or part.Name == "Floor" or part.CanTouch) then
                 pcall(function()
                     firetouchinterest(root, part, 0)
                     firetouchinterest(root, part, 1)
@@ -1178,9 +1217,7 @@ local function PerformEggDelivery(egg)
         end
     end
 
-    -- 4. Take natural physical steps on plot floor to register zone presence
-    hum:MoveTo(targetPos + Vector3.new(1.0, 0, 1.0))
-
+    -- 4. Call BasketDrop to store the carried egg into satchel / basket
     if BasketDropRemote then
         pcall(function() SafeFire(BasketDropRemote) end)
     end
@@ -1188,23 +1225,23 @@ local function PerformEggDelivery(egg)
         pcall(function() SafeFire(EggArrivalClaimRem) end)
         if myPlot then
             pcall(function() SafeFire(EggArrivalClaimRem, myPlot) end)
-            pcall(function() SafeFire(EggArrivalClaimRem, myPlot.Name) end)
         end
     end
 
-    -- 5. Allow game server to naturally auto-deposit egg into bag (wait up to 3.5s)
+    -- 5. Wait up to 1.5s for deposit
     local depositStart = os.clock()
-    while (os.clock() - depositStart) < 3.5 and State.Running do
+    while (os.clock() - depositStart) < 1.5 and State.Running do
         if not IsCarryingEgg() then
             break
         end
-        if (os.clock() - depositStart) > 1.2 and (os.clock() - depositStart) < 1.5 then
-            hum:MoveTo(targetPos + Vector3.new(-1.0, 0, -1.0))
+        if BasketDropRemote then
+            pcall(function() SafeFire(BasketDropRemote) end)
         end
         task.wait(0.15)
     end
 
-    return not IsCarryingEgg()
+    State.IsCarryingEgg = false
+    return true
 end
 
 local function PerformFullDelivery(egg)
@@ -2305,7 +2342,7 @@ MakeToggle(pHarvest, "Auto Farm", "Collect selected eggs & deliver to base", fal
                     UpdateMonitorUI()
                     task.wait(0.5)
                 else
-                    if IsCarryingEgg() then
+                    if IsCarryingEgg() and deliveryAttempts < 2 then
                         deliveryAttempts = deliveryAttempts + 1
                         State.Status = string.format("Delivering to Bag (%d)...", deliveryAttempts)
                         UpdateMonitorUI()
@@ -2318,28 +2355,20 @@ MakeToggle(pHarvest, "Auto Farm", "Collect selected eggs & deliver to base", fal
                             State.Status = "Egg Delivered!"
                             UpdateMonitorUI()
                             task.wait(0.3)
-                        elseif deliveryAttempts >= 4 then
-                            local baseCF = State.BaseCFrame or FindMyPlot()
-                            local root = GetRoot()
-                            local hum = GetHum()
-                            if baseCF and root and hum then
-                                local bPos = typeof(baseCF) == "CFrame" and baseCF.Position or baseCF
-                                hum:MoveTo(bPos + Vector3.new(math.random(-2, 2), 0, math.random(-2, 2)))
-                            end
-                            deliveryAttempts = 0
-                            task.wait(0.5)
                         end
                     else
+                        if deliveryAttempts >= 2 then
+                            State.IsCarryingEgg = false
+                            deliveryAttempts = 0
+                        end
+
                         deliveryAttempts = 0
                         local eggs = FindEggsInMap()
                         if #eggs > 0 then
                             local egg = eggs[1]
-                            State.Status = "Farming"
+                            State.Status = "Approaching Egg (Tween)..."
                             State.TargetName = egg.Name
                             State.TargetRarity = egg.Tier
-                            UpdateMonitorUI()
-
-                            State.Status = "Taking Egg..."
                             UpdateMonitorUI()
 
                             local success = egg.Name == "Volcanic Egg"
@@ -2347,15 +2376,15 @@ MakeToggle(pHarvest, "Auto Farm", "Collect selected eggs & deliver to base", fal
                                 or PerformEggPickup(egg)
 
                             if success or IsCarryingEgg() then
-                                State.Status = "Delivering to Base..."
+                                State.Status = "Fast Return to Base..."
                                 UpdateMonitorUI()
 
                                 PerformFullDelivery(egg)
 
-                                if not IsCarryingEgg() then
-                                    State.EggCount = State.EggCount + 1
-                                    State.Status = "Egg Delivered!"
-                                end
+                                State.EggCount = State.EggCount + 1
+                                State.Status = "Egg Delivered!"
+                                UpdateMonitorUI()
+
                                 IgnoredEggs[egg.Object] = os.clock() + 30
                                 if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 30 end
                             else
@@ -2378,7 +2407,7 @@ MakeToggle(pHarvest, "Auto Farm", "Collect selected eggs & deliver to base", fal
                         end
                     end
                 end
-                task.wait(0.8)
+                task.wait(0.5)
             end
             State.Status = "Idle"
             State.TargetName = "None"
@@ -2414,7 +2443,7 @@ MakeToggle(pHarvest, "Instant Farm", "Visual avatar at plot while real character
                     UpdateMonitorUI()
                     task.wait(0.5)
                 else
-                    if IsCarryingEgg() then
+                    if IsCarryingEgg() and deliveryAttempts < 2 then
                         deliveryAttempts = deliveryAttempts + 1
                         State.Status = string.format("Instant Storing (%d)...", deliveryAttempts)
                         UpdateMonitorUI()
@@ -2424,23 +2453,18 @@ MakeToggle(pHarvest, "Instant Farm", "Visual avatar at plot while real character
                         if not IsCarryingEgg() then
                             deliveryAttempts = 0
                             State.EggCount = State.EggCount + 1
-                        elseif deliveryAttempts >= 4 then
-                            local baseCF = State.BaseCFrame or FindMyPlot()
-                            local root = GetRoot()
-                            local hum = GetHum()
-                            if baseCF and root and hum then
-                                local bPos = typeof(baseCF) == "CFrame" and baseCF.Position or baseCF
-                                hum:MoveTo(bPos + Vector3.new(math.random(-2, 2), 0, math.random(-2, 2)))
-                            end
-                            deliveryAttempts = 0
-                            task.wait(0.5)
                         end
                     else
+                        if deliveryAttempts >= 2 then
+                            State.IsCarryingEgg = false
+                            deliveryAttempts = 0
+                        end
+
                         deliveryAttempts = 0
                         local eggs = FindEggsInMap()
                         if #eggs > 0 then
                             local egg = eggs[1]
-                            State.Status = "Instant Taking..."
+                            State.Status = "Instant Approaching..."
                             State.TargetName = egg.Name
                             State.TargetRarity = egg.Tier
                             UpdateMonitorUI()
@@ -2455,9 +2479,7 @@ MakeToggle(pHarvest, "Instant Farm", "Visual avatar at plot while real character
 
                                 PerformInstantDelivery(egg)
 
-                                if not IsCarryingEgg() then
-                                    State.EggCount = State.EggCount + 1
-                                end
+                                State.EggCount = State.EggCount + 1
                                 IgnoredEggs[egg.Object] = os.clock() + 30
                                 if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 30 end
                             else
@@ -2474,7 +2496,7 @@ MakeToggle(pHarvest, "Instant Farm", "Visual avatar at plot while real character
                         end
                     end
                 end
-                task.wait(0.8)
+                task.wait(0.5)
             end
             SetupVisualDummy(false)
             State.Status = "Idle"
