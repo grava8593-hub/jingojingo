@@ -326,57 +326,44 @@ local function IsCarryingEgg()
     local char = LP.Character
     if not char then return false end
 
-    -- Check 1: Any Tool in Character (player holds egg or basket)
+    -- Check 1: Tool in Character that is explicitly an Egg
     for _, tool in ipairs(char:GetChildren()) do
         if tool:IsA("Tool") then
             local n = string.lower(tool.Name)
-            if not string.find(n, "pet") and not string.find(n, "mount") and not string.find(n, "ride") then
+            if string.find(n, "egg") or tool:HasTag("Egg") or tool:GetAttribute("EggInventoryId") ~= nil then
                 return true
             end
         end
     end
 
-    -- Check 1b: Tool in Backpack
-    local bp = LP:FindFirstChild("Backpack")
-    if bp then
-        for _, tool in ipairs(bp:GetChildren()) do
-            if tool:IsA("Tool") then
-                local n = string.lower(tool.Name)
-                if not string.find(n, "pet") and not string.find(n, "mount") and not string.find(n, "ride") then
-                    return true
-                end
-            end
-        end
-    end
-
-    -- Check 2: Models or Parts attached to character (e.g. egg weld, basket model)
+    -- Check 2: Model or Part attached to character that is an Egg (e.g. egg held in hands)
     for _, item in ipairs(char:GetChildren()) do
         if (item:IsA("Model") or item:IsA("BasePart")) and item ~= char and item.Name ~= "HumanoidRootPart" then
             local n = string.lower(item.Name)
-            if (string.find(n, "egg") or string.find(n, "basket") or string.find(n, "carry")) and not string.find(n, "pet") and not string.find(n, "mount") and not string.find(n, "nest") then
+            if string.find(n, "egg") and not string.find(n, "nest") and not string.find(n, "pet") and not string.find(n, "mount") then
                 return true
             end
         end
     end
 
-    -- Check 3: Welds on character attached to egg objects
+    -- Check 3: Welds on character explicitly attached to an egg part
     for _, d in ipairs(char:GetDescendants()) do
         if d:IsA("WeldConstraint") or d:IsA("Weld") then
             local p0, p1 = d.Part0, d.Part1
             local other = (p0 and not p0:IsDescendantOf(char) and p0) or (p1 and not p1:IsDescendantOf(char) and p1)
             if other then
                 local on = string.lower(other.Name)
-                if not string.find(on, "terrain") and not string.find(on, "baseplate") and not string.find(on, "plot") then
+                if string.find(on, "egg") and not string.find(on, "nest") and not string.find(on, "pet") then
                     return true
                 end
             end
         end
     end
 
-    -- Check 4: Character attributes
+    -- Check 4: Character attributes for carrying egg
     for attName, attVal in pairs(char:GetAttributes()) do
         local an = string.lower(attName)
-        if (string.find(an, "egg") or string.find(an, "basket") or string.find(an, "carry") or string.find(an, "holding")) and attVal == true then
+        if (string.find(an, "carryingegg") or string.find(an, "holdingegg") or string.find(an, "hasegg")) and attVal == true then
             return true
         end
     end
