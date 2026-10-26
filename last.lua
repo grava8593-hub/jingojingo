@@ -340,11 +340,16 @@ local function TriggerPromptInstant(prompt)
         prompt.RequiresLineOfSight = false
         prompt.MaxActivationDistance = math.huge
         if typeof(fireproximityprompt) == "function" then
-            fireproximityprompt(prompt, prompt.HoldDuration or 0)
             fireproximityprompt(prompt)
         end
+        local hold = prompt.HoldDuration or 0
         if prompt.InputHoldBegin and prompt.InputHoldEnd then
             prompt:InputHoldBegin()
+            if hold > 0 then
+                task.wait(hold + 0.05)
+            else
+                task.wait(0.04)
+            end
             prompt:InputHoldEnd()
         end
     end)
@@ -1015,32 +1020,33 @@ local function ExitVolcanoToPlot()
     return true
 end
 
-local function FindEggsInMap()
-    local list = {}
-    local scanNow = os.clock()
-
-    if scanNow - LastEggScan < EggScanDelay then
-        for _, egg in ipairs(EggScanCache) do
-            if egg.Object
-                and egg.Object:IsDescendantOf(Workspace)
-                and not IgnoredEggs[egg.Object]
-                and State.SelectedEggs[egg.Name] then
-                table.insert(list, egg)
+local function FindModelNearPosition(pos)
+    if not pos then return nil, nil end
+    for _, obj in ipairs(Workspace:GetChildren()) do
+        if obj:IsA("Model") and not obj:FindFirstChildOfClass("Humanoid") then
+            local p = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+            if p and (p.Position - pos).Magnitude < 12 then
+                return obj, p
             end
         end
-        return list
     end
+    for _, folder in ipairs(Workspace:GetChildren()) do
+        if folder:IsA("Folder") and folder.Name ~= "Plots" and folder.Name ~= "PlayerPlots" then
+            for _, obj in ipairs(folder:GetChildren()) do
+                if obj:IsA("Model") then
+                    local p = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                    if p and (p.Position - pos).Magnitude < 12 then
+                        return obj, p
+                    end
+                end
+            end
+        end
+    end
+    return nil, nil
+end
 
-    LastEggScan = scanNow
-    local root = GetRoot()
-    local myPos = root and root.Position or Vector3.zero
-
-    local baseCFrame = State.BaseCFrame or FindMyPlot()
-    local basePos = baseCFrame and baseCFrame.Position or Vector3.zero
-    local myPlotObj = State.PlotObject
-
-    local blacklist = {"tracker", "stand", "pedestal", "shop", "store", "display", "base", "nest", "plot", "buy", "sample", "plant", "incubator"}
-
+local function FindEggsInMap()
+    local list = {}
     local now = os.clock()
     for k, expire in pairs(IgnoredEggs) do
         if now > expire then IgnoredEggs[k] = nil end
@@ -1048,45 +1054,88 @@ local function FindEggsInMap()
 
     if not HasAnyEggSelected() then return list end
 
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if not IgnoredEggs[obj] and (obj:IsA("Model") or (obj:IsA("BasePart") and not obj.Parent:IsA("Model"))) then
-            
-            local inAnyPlot = obj:FindFirstAncestor("Plots") or obj:FindFirstAncestor("PlayerPlots")
-            if myPlotObj and obj:IsDescendantOf(myPlotObj) then
-                inAnyPlot = true
-            end
+    local root = GetRoot()
+    local myPos = root and root.Position or Vector3.zero
 
-            local isBlack = false
-            local ancestor = obj
-            while ancestor and ancestor ~= Workspace do
-                local aName = string.lower(ancestor.Name)
-                for _, word in ipairs(blacklist) do
-                    if string.find(aName, word) then
-                        isBlack = true
-                        break
+    -- Method 1: Authoritative live eggs from ReplicatedStorage.ServerData.ActiveEggs
+    local ae = RS:FindFirstChild("ServerData") and RS.ServerData:FindFirstChild("ActiveEggs")
+    if ae and #ae:GetChildren() > 0 then
+        for _, cfg in ipairs(ae:GetChildren()) do
+            if not IgnoredEggs[cfg] and not IgnoredEggs[cfg.Name] then
+                local cfgPos = cfg:GetAttribute("Position")
+                    or (cfg:FindFirstChild("Position") and cfg.Position.Value)
+                local cfgType = cfg:GetAttribute("EggType")
+                    or cfg:GetAttribute("Type")
+                    or (cfg:FindFirstChild("EggType") and cfg.EggType.Value)
+                    or cfg.Name
+
+                if cfgPos then
+                    local model, part = FindModelNearPosition(cfgPos)
+                    local checkName = (model and model.Name) or cfgType or cfg.Name
+                    local selected, eggName, eggTier = IsEggSelected(checkName)
+                    if not selected and cfgType then
+                        selected, eggName, eggTier = IsEggSelected(cfgType)
                     end
-                end
-                if isBlack then break end
-                ancestor = ancestor.Parent
-            end
 
-            if not inAnyPlot and not isBlack and not obj:IsDescendantOf(LP.Character) then
-                local selected, eggName, eggTier = IsEggSelected(obj.Name)
-                if selected then
-                    local p = obj:IsA("BasePart") and obj or obj:FindFirstChildWhichIsA("BasePart")
-                    if p and p.Transparency < 0.9 and not IgnoredEggs[p] then
-                        
-                        local dist = (myPos - p.Position).Magnitude
+                    if selected then
+                        local dist = (myPos - cfgPos).Magnitude
                         local tierVal = TierPriority[eggTier] or 1
                         table.insert(list, {
-                            Object    = obj,
-                            Part      = p,
-                            Name      = eggName,
-                            Tier      = eggTier,
+                            Object    = model,
+                            Part      = part,
+                            Position  = cfgPos,
+                            Name      = eggName or checkName,
+                            Tier      = eggTier or "Common",
                             Priority  = tierVal,
                             Distance  = dist,
-                            UUID      = GetEggUUID(obj)
+                            UUID      = cfg.Name,
+                            Config    = cfg
                         })
+                    end
+                end
+            end
+        end
+    end
+
+    -- Method 2: Fallback scan in Workspace if ServerData has no eggs
+    if #list == 0 then
+        local blacklist = {"tracker", "stand", "pedestal", "shop", "store", "display", "base", "nest", "plot", "buy", "sample", "plant", "incubator"}
+        local myPlotObj = State.PlotObject
+
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if not IgnoredEggs[obj] and (obj:IsA("Model") or (obj:IsA("BasePart") and not obj.Parent:IsA("Model"))) then
+                local inAnyPlot = obj:FindFirstAncestor("Plots") or obj:FindFirstAncestor("PlayerPlots")
+                if myPlotObj and obj:IsDescendantOf(myPlotObj) then inAnyPlot = true end
+
+                local isBlack = false
+                local ancestor = obj
+                while ancestor and ancestor ~= Workspace do
+                    local aName = string.lower(ancestor.Name)
+                    for _, word in ipairs(blacklist) do
+                        if string.find(aName, word) then isBlack = true; break end
+                    end
+                    if isBlack then break end
+                    ancestor = ancestor.Parent
+                end
+
+                if not inAnyPlot and not isBlack and not obj:IsDescendantOf(LP.Character) then
+                    local selected, eggName, eggTier = IsEggSelected(obj.Name)
+                    if selected then
+                        local p = obj:IsA("BasePart") and obj or obj:FindFirstChildWhichIsA("BasePart")
+                        if p and p.Transparency < 0.9 and not IgnoredEggs[p] then
+                            local dist = (myPos - p.Position).Magnitude
+                            local tierVal = TierPriority[eggTier] or 1
+                            table.insert(list, {
+                                Object    = obj,
+                                Part      = p,
+                                Position  = p.Position,
+                                Name      = eggName,
+                                Tier      = eggTier,
+                                Priority  = tierVal,
+                                Distance  = dist,
+                                UUID      = GetEggUUID(obj)
+                            })
+                        end
                     end
                 end
             end
@@ -1104,17 +1153,20 @@ end
 
 local function CollectEggAtCurrentPosition(egg, timeout, allowObjectGone)
     local root = GetRoot()
-    if not root or not egg or not egg.Part then return false end
+    if not root or not egg then return false end
+
+    local eggPos = egg.Position or (egg.Part and egg.Part.Position)
+    if not eggPos then return false end
 
     -- Reset previous pickup flag
     State.LastPickupDetected = false
 
-    -- Berdiri tepat di posisi telur dan netralkan kecepatan
-    root.CFrame = egg.Part.CFrame + Vector3.new(0, 1.0, 0)
+    -- Berdiri tepat di posisi telur
+    root.CFrame = CFrame.new(eggPos + Vector3.new(0, 1.0, 0))
     root.AssemblyLinearVelocity = Vector3.zero
     root.AssemblyAngularVelocity = Vector3.zero
 
-    -- 1. Sentuh fisik part telur
+    -- 1. Sentuh fisik part telur jika ada
     if typeof(firetouchinterest) == "function" and egg.Part and egg.Part.Parent then
         pcall(function()
             firetouchinterest(root, egg.Part, 0)
@@ -1122,52 +1174,58 @@ local function CollectEggAtCurrentPosition(egg, timeout, allowObjectGone)
         end)
     end
 
-    -- 2. Trigger ProximityPrompt resmi (Ride a Pet client binds to this)
-    local triggeredAny = false
-    for _, prompt in ipairs(egg.Object:GetDescendants()) do
-        if prompt:IsA("ProximityPrompt") then
-            triggeredAny = true
-            TriggerPromptInstant(prompt)
-        end
-    end
-
-    -- 3. Tembak remote resmi HANYA jika UUID valid (bukan nama display seperti Aurora Egg)
-    if EggPickupRemote and egg.UUID and egg.UUID ~= "" and string.find(egg.UUID, "%x%x%x%x") then
+    -- 2. Tembak remote resmi dengan UUID
+    if EggPickupRemote and egg.UUID and egg.UUID ~= "" then
         pcall(function() SafeFire(EggPickupRemote, egg.UUID) end)
     end
 
-    -- 4. Tekan E fisik via VirtualInputManager
+    -- 3. Trigger ProximityPrompt resmi jika ada
+    if egg.Object then
+        for _, prompt in ipairs(egg.Object:GetDescendants()) do
+            if prompt:IsA("ProximityPrompt") then
+                TriggerPromptInstant(prompt)
+            end
+        end
+    end
+
+    -- 4. Tahan E fisik via VirtualInputManager
     pcall(function()
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
     end)
 
+    -- Tunggu konfirmasi server: UUID hilang dari ServerData.ActiveEggs, atau console event picked up, atau IsCarryingEgg
+    local ae = RS:FindFirstChild("ServerData") and RS.ServerData:FindFirstChild("ActiveEggs")
     local startWait = os.clock()
-    local maxWait = timeout or 0.6
+    local maxWait = timeout or 1.2
     local pickedUp = false
 
     while (os.clock() - startWait) < maxWait and State.Running do
-        task.wait(0.04)
+        task.wait(0.05)
 
-        if State.LastPickupDetected or IsCarryingEgg() or not egg.Object:IsDescendantOf(Workspace) or (egg.Part and egg.Part.Transparency >= 0.85) then
+        -- Check 1: ServerData.ActiveEggs config removed by server (100% authoritative proof!)
+        if ae and egg.UUID and not ae:FindFirstChild(egg.UUID) then
             pickedUp = true
             break
         end
 
-        for _, prompt in ipairs(egg.Object:GetDescendants()) do
-            if prompt:IsA("ProximityPrompt") and not prompt.Enabled then
-                pickedUp = true
-                break
-            end
+        -- Check 2: Console hook / IsCarryingEgg
+        if State.LastPickupDetected or IsCarryingEgg() then
+            pickedUp = true
+            break
         end
-        if pickedUp then break end
+
+        -- Check 3: Object despawned from workspace
+        if egg.Object and (not egg.Object:IsDescendantOf(Workspace) or (egg.Part and egg.Part.Transparency >= 0.85)) then
+            pickedUp = true
+            break
+        end
     end
 
     pcall(function()
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
     end)
 
-    -- Game server logs proof: once prompt is triggered at 1 stud distance, server confirms pickup
-    if triggeredAny or State.LastPickupDetected or pickedUp or IsCarryingEgg() then
+    if pickedUp or State.LastPickupDetected or IsCarryingEgg() then
         State.IsCarryingEgg = true
         State.LastEggPickupTime = os.clock()
         return true
@@ -1177,27 +1235,31 @@ local function CollectEggAtCurrentPosition(egg, timeout, allowObjectGone)
 end
 
 local function PerformEggPickup(egg)
-    if not egg or not egg.Part then return false end
+    if not egg then return false end
     local root = GetRoot()
     if not root then return false end
 
-    local eggPos = egg.Part.Position + Vector3.new(0, 1.0, 0)
+    local eggPos = egg.Position or (egg.Part and egg.Part.Position)
+    if not eggPos then return false end
+
     TweenToEgg(eggPos, 150)
     task.wait(0.04)
 
-    return CollectEggAtCurrentPosition(egg, 2.5, true)
+    return CollectEggAtCurrentPosition(egg, 1.5, true)
 end
 
 local function PerformInstantPickup(egg)
-    if not egg or not egg.Part then return false end
+    if not egg then return false end
     local root = GetRoot()
     if not root then return false end
 
-    local eggPos = egg.Part.Position + Vector3.new(0, 1.0, 0)
+    local eggPos = egg.Position or (egg.Part and egg.Part.Position)
+    if not eggPos then return false end
+
     TweenToEgg(eggPos, 160)
     task.wait(0.04)
 
-    return CollectEggAtCurrentPosition(egg, 2.5, true)
+    return CollectEggAtCurrentPosition(egg, 1.5, true)
 end
 
 local function PerformVolcanicPickup(egg, instant)
