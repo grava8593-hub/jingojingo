@@ -645,22 +645,15 @@ local function SetupVisualDummy(enabled)
     end
 end
 
-local function UndergroundReturnToBase(targetPos)
+local function UndergroundReturnToBase(targetPos, speed)
     local root = GetRoot()
     local hum = GetHum()
     local char = LP.Character
     if not root or not hum or not char then return false end
 
-    root.Anchored = false
-    root.AssemblyLinearVelocity = Vector3.zero
-    root.AssemblyAngularVelocity = Vector3.zero
+    local targetV3 = typeof(targetPos) == "CFrame" and targetPos.Position or targetPos
 
-    if hum then
-        hum.PlatformStand = true
-        pcall(function() hum:ChangeState(Enum.HumanoidStateType.Physics) end)
-    end
-
-    -- Continuous noclip under the map
+    -- 1. Continuous noclip under the map
     local noclipActive = true
     local noclipConn = RunService.Stepped:Connect(function()
         if not noclipActive then return end
@@ -674,27 +667,48 @@ local function UndergroundReturnToBase(targetPos)
         end
     end)
 
-    -- Safe underground altitude (safely above FallenPartsDestroyHeight)
+    root.AssemblyLinearVelocity = Vector3.zero
+    root.AssemblyAngularVelocity = Vector3.zero
+
+    -- Safe underground altitude (-20 studs, safely above FallenPartsDestroyHeight)
     local voidLimit = (Workspace.FallenPartsDestroyHeight or -500) + 70
-    local undergroundY = math.clamp(math.min(root.Position.Y, targetPos.Y) - 25, voidLimit, 10000)
+    local undergroundY = math.clamp(math.min(root.Position.Y, targetV3.Y) - 20, voidLimit, 10000)
 
-    -- 1. Turun instan menembus lantai ke bawah map
+    -- Phase A: Smooth dive down under the map (~0.25s)
+    root.Anchored = true
     local diveTarget = Vector3.new(root.Position.X, undergroundY, root.Position.Z)
-    root.CFrame = CFrame.new(diveTarget)
-    root.AssemblyLinearVelocity = Vector3.zero
-    task.wait(0.02)
+    local diveTw = TweenService:Create(root, TweenInfo.new(0.25, Enum.EasingStyle.Linear), {CFrame = CFrame.new(diveTarget)})
+    diveTw:Play()
+    diveTw.Completed:Wait()
 
-    -- 2. Pindah instan lewat bawah tanah ke bawah plot/nest target
-    local undergroundBasePos = Vector3.new(targetPos.X, undergroundY, targetPos.Z)
-    root.CFrame = CFrame.new(undergroundBasePos)
-    root.AssemblyLinearVelocity = Vector3.zero
-    task.wait(0.02)
+    -- Phase B: Underground Linear Tween to below plot/nest
+    -- Travel at a realistic speed (110-130 studs/s) so server EggChase accepts delivery (3-5s travel time vs 30s timer)
+    local distUnder = (Vector2.new(targetV3.X - root.Position.X, targetV3.Z - root.Position.Z)).Magnitude
+    local returnSpeed = math.clamp(speed or State.ReturnSpeed or 115, 85, 145)
+    local travelDuration = math.clamp(distUnder / returnSpeed, 0.5, 7.5)
 
-    -- 3. CFrame naik langsung ke atas plot / nest
-    local ascendTarget = targetPos + Vector3.new(0, 1.8, 0)
-    root.CFrame = CFrame.new(ascendTarget)
+    local undergroundBasePos = Vector3.new(targetV3.X, undergroundY, targetV3.Z)
+    local transTw = TweenService:Create(root, TweenInfo.new(travelDuration, Enum.EasingStyle.Linear), {CFrame = CFrame.new(undergroundBasePos)})
+    transTw:Play()
+
+    local started = os.clock()
+    while transTw.PlaybackState == Enum.PlaybackState.Playing and State.Running do
+        if (os.clock() - started) > (travelDuration + 0.8) then
+            transTw:Cancel()
+            break
+        end
+        task.wait(0.04)
+    end
+
+    -- Phase C: Smooth ascend up directly onto plot floor / nest (~0.25s)
+    local ascendTarget = CFrame.new(targetV3 + Vector3.new(0, 1.8, 0))
+    local ascendTw = TweenService:Create(root, TweenInfo.new(0.25, Enum.EasingStyle.Linear), {CFrame = ascendTarget})
+    ascendTw:Play()
+    ascendTw.Completed:Wait()
+
+    root.Anchored = false
     root.AssemblyLinearVelocity = Vector3.zero
-    task.wait(0.02)
+    root.AssemblyAngularVelocity = Vector3.zero
 
     -- Bersihkan noclip dan pulihkan status humanoid
     noclipActive = false
@@ -722,7 +736,7 @@ local function UndergroundReturnToBase(targetPos)
         RunService.Heartbeat:Wait()
     end
 
-    task.wait(0.02)
+    task.wait(0.04)
     return true
 end
 
@@ -1135,11 +1149,11 @@ local function PerformEggDelivery(egg)
     local deliveryCF = GetPlotDeliveryCFrame()
     local targetPos = typeof(deliveryCF) == "CFrame" and deliveryCF.Position or deliveryCF
 
-    State.Status = "Underground CFrame to Base..."
+    State.Status = "Underground Returning..."
     UpdateMonitorUI()
 
-    -- 1. Langsung CFrame lewat bawah tanah ke base / plot (Ultra Fast: ~0.06 detik)
-    UndergroundReturnToBase(targetPos)
+    -- 1. Underground Tween ke base / plot (3-5 detik, waktu tempuh valid agar server menerima telur)
+    UndergroundReturnToBase(targetPos, State.ReturnSpeed or 115)
     task.wait(0.04)
 
     State.Status = "Securing Delivery..."
