@@ -674,8 +674,13 @@ local function UndergroundReturnToBase(targetPos, speed)
     local voidLimit = (Workspace.FallenPartsDestroyHeight or -500) + 70
     local undergroundY = math.clamp(math.min(root.Position.Y, targetV3.Y) - 20, voidLimit, 10000)
 
+    if hum then
+        hum.PlatformStand = true
+        pcall(function() hum:ChangeState(Enum.HumanoidStateType.Physics) end)
+    end
+    root.Anchored = false
+
     -- Phase A: Smooth dive down under the map (~0.25s)
-    root.Anchored = true
     local diveTarget = Vector3.new(root.Position.X, undergroundY, root.Position.Z)
     local diveTw = TweenService:Create(root, TweenInfo.new(0.25, Enum.EasingStyle.Linear), {CFrame = CFrame.new(diveTarget)})
     diveTw:Play()
@@ -693,6 +698,8 @@ local function UndergroundReturnToBase(targetPos, speed)
 
     local started = os.clock()
     while transTw.PlaybackState == Enum.PlaybackState.Playing and State.Running do
+        root.AssemblyLinearVelocity = Vector3.zero
+        root.AssemblyAngularVelocity = Vector3.zero
         if (os.clock() - started) > (travelDuration + 0.8) then
             transTw:Cancel()
             break
@@ -706,7 +713,6 @@ local function UndergroundReturnToBase(targetPos, speed)
     ascendTw:Play()
     ascendTw.Completed:Wait()
 
-    root.Anchored = false
     root.AssemblyLinearVelocity = Vector3.zero
     root.AssemblyAngularVelocity = Vector3.zero
 
@@ -1021,86 +1027,73 @@ local function CollectEggAtCurrentPosition(egg, timeout, allowObjectGone)
     local root = GetRoot()
     if not root or not egg or not egg.Part then return false end
 
-    -- Snap right onto the egg and stop velocity
+    -- Berdiri tepat di posisi telur dan netralkan kecepatan
     root.CFrame = egg.Part.CFrame + Vector3.new(0, 1.2, 0)
     root.AssemblyLinearVelocity = Vector3.zero
     root.AssemblyAngularVelocity = Vector3.zero
 
-    local uuid = egg.UUID or GetEggUUID(egg.Object)
+    -- 1. Sentuh fisik part telur
+    if typeof(firetouchinterest) == "function" and egg.Part and egg.Part.Parent then
+        pcall(function()
+            firetouchinterest(root, egg.Part, 0)
+            firetouchinterest(root, egg.Part, 1)
+        end)
+    end
 
-    -- Press E via VirtualInputManager
+    -- 2. Trigger ProximityPrompt resmi
+    for _, prompt in ipairs(egg.Object:GetDescendants()) do
+        if prompt:IsA("ProximityPrompt") then
+            TriggerPromptInstant(prompt)
+        end
+    end
+
+    -- 3. Tembak remote resmi (1 kali saja sesuai nama telur / config)
+    if EggPickupRemote and egg.Object then
+        pcall(function() SafeFire(EggPickupRemote, egg.Object.Name) end)
+    end
+
+    -- 4. Tahan E fisik via VirtualInputManager
     pcall(function()
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
     end)
 
     local startWait = os.clock()
-    local maxWait = timeout or 2.5
+    local maxWait = timeout or 3.0
+    local pickedUp = false
 
     while (os.clock() - startWait) < maxWait and State.Running do
-        -- 1. Check if egg was successfully picked up
-        if IsCarryingEgg() or (allowObjectGone and not egg.Object:IsDescendantOf(Workspace)) or (egg.Part and egg.Part.Transparency >= 0.85) then
-            pcall(function()
-                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
-            end)
-            return true
-        end
+        task.wait(0.1)
 
-        -- Keep snapping onto egg in case physics pushed character
+        -- Snap posisi agar tidak tergeser sebelum telur masuk tangan
         if egg.Part and egg.Part.Parent then
             root.CFrame = egg.Part.CFrame + Vector3.new(0, 1.2, 0)
             root.AssemblyLinearVelocity = Vector3.zero
         end
 
-        -- 2. Physical Touch interest (Essential for touch-based pickup)
-        if typeof(firetouchinterest) == "function" and egg.Part and egg.Part.Parent then
-            pcall(function()
-                firetouchinterest(root, egg.Part, 0)
-                firetouchinterest(root, egg.Part, 1)
-            end)
-            for _, p in ipairs(egg.Object:GetDescendants()) do
-                if p:IsA("BasePart") and p ~= egg.Part then
-                    pcall(function()
-                        firetouchinterest(root, p, 0)
-                        firetouchinterest(root, p, 1)
-                    end)
-                end
-            end
-        end
-
-        -- 3. Continuously trigger all ProximityPrompts (ensures server catches it after ping latency)
+        -- Trigger ulang prompt jika belum terambil
         for _, prompt in ipairs(egg.Object:GetDescendants()) do
             if prompt:IsA("ProximityPrompt") then
                 TriggerPromptInstant(prompt)
             end
         end
 
-        -- 4. Continuously fire remote if available (matches Ride a Pet ServerData.ActiveEggs)
-        if EggPickupRemote then
-            if egg.Object and egg.Object.Name then pcall(function() SafeFire(EggPickupRemote, egg.Object.Name) end) end
-            if uuid then pcall(function() SafeFire(EggPickupRemote, uuid) end) end
-            if egg.Object then pcall(function() SafeFire(EggPickupRemote, egg.Object) end) end
-            if egg.Part then pcall(function() SafeFire(EggPickupRemote, egg.Part) end) end
-
-            local activeEggs = RS:FindFirstChild("ServerData") and RS.ServerData:FindFirstChild("ActiveEggs")
-            if activeEggs and egg.Part then
-                for _, cfg in ipairs(activeEggs:GetChildren()) do
-                    local pos = cfg:GetAttribute("Position")
-                    if pos and (pos - egg.Part.Position).Magnitude < 10 then
-                        pcall(function() SafeFire(EggPickupRemote, cfg.Name) end)
-                        break
-                    end
-                end
-            end
+        if IsCarryingEgg() or not egg.Object:IsDescendantOf(Workspace) or (egg.Part and egg.Part.Transparency >= 0.85) then
+            pickedUp = true
+            break
         end
-
-        task.wait(0.06)
     end
 
     pcall(function()
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
     end)
 
-    return IsCarryingEgg() or (allowObjectGone and not egg.Object:IsDescendantOf(Workspace)) or (egg.Part and egg.Part.Transparency >= 0.85)
+    if pickedUp then
+        -- KUNCI UTAMA: Berikan jeda 0.35s di lokasi telur agar server selesai memasang WELD telur ke karakter
+        task.wait(0.35)
+        return true
+    end
+
+    return false
 end
 
 local function PerformEggPickup(egg)
