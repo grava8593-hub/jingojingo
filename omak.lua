@@ -57,20 +57,24 @@ pcall(function()
 end)
 
 local C = {
-    Bg = Color3.fromRGB(10, 13, 19),          -- Dark ninja deep slate/black
-    Top = Color3.fromRGB(13, 17, 25),         -- Header top bar
-    Sidebar = Color3.fromRGB(12, 15, 23),     -- Sleek sidebar navigation
-    TabBg = Color3.fromRGB(12, 15, 23),
-    Card = Color3.fromRGB(16, 21, 31),        -- Sleek dark cards
-    CardHover = Color3.fromRGB(22, 29, 44),   -- Card hover state
+    Bg = Color3.fromRGB(11, 13, 19),          -- Obsidian void background
+    Top = Color3.fromRGB(13, 16, 24),         -- Top bar
+    Sidebar = Color3.fromRGB(9, 11, 16),      -- Ultra-clean dark sidebar
+    SidebarBtn = Color3.fromRGB(13, 16, 24),  -- Sidebar button subtle bg
+    SidebarActive = Color3.fromRGB(16, 32, 54),-- Active tab glass tint
+    Card = Color3.fromRGB(15, 18, 27),        -- Refined dark card
+    CardHover = Color3.fromRGB(20, 26, 38),   -- Interactive card hover
+    CardStroke = Color3.fromRGB(25, 33, 48),  -- Elegant subtle card stroke
+    WindowStroke = Color3.fromRGB(28, 38, 56),-- Subtle sleek outer window border (NOT tacky neon!)
     Blue = Color3.fromRGB(0, 162, 255),       -- RMHUB Neon Cyan / Electric Blue Accent
     BlueGlow = Color3.fromRGB(30, 200, 255),  -- Bright electric aura
-    Red = Color3.fromRGB(235, 45, 65),        -- Close button hover / Danger
-    RedGlow = Color3.fromRGB(255, 60, 80),
-    Txt = Color3.fromRGB(242, 246, 255),      -- Sharp white/silver text
-    Sub = Color3.fromRGB(125, 142, 168),      -- Metallic slate subtext
-    Border = Color3.fromRGB(25, 36, 52),      -- Muted electric navy border
-    Off = Color3.fromRGB(28, 35, 48),         -- Dark toggle off
+    Red = Color3.fromRGB(235, 60, 75),        -- Close button hover / Danger
+    RedGlow = Color3.fromRGB(255, 80, 95),
+    Txt = Color3.fromRGB(244, 247, 255),      -- Pure crisp silver-white
+    Sub = Color3.fromRGB(130, 145, 170),      -- Soft slate subtext
+    Border = Color3.fromRGB(22, 28, 42),      -- Clean subtle divider border
+    Off = Color3.fromRGB(24, 30, 42),         -- Dark toggle switch track (OFF)
+    OffKnob = Color3.fromRGB(140, 150, 170),  -- Muted knob (OFF)
     Green = Color3.fromRGB(46, 204, 113)
 }
 
@@ -88,7 +92,10 @@ local function Notify(title, desc, duration)
     end)
 end
 
+local ScriptActive = false
+
 RunService.Stepped:Connect(function()
+    if not ScriptActive then return end
     pcall(function()
         local char = player.Character
         if char then
@@ -380,7 +387,7 @@ local function RequestServerTrial()
 end
 
 LaunchKeyUI = function(isExpiredTrial)
-    if CoreGui:FindFirstChild("ERDEVA_KEY") then
+    if CoreGui:FindFirstChild("RMHUB_KEY") or CoreGui:FindFirstChild("ERDEVA_KEY") then
         return
     end
 
@@ -392,26 +399,33 @@ LaunchKeyUI = function(isExpiredTrial)
 
     local Overlay = Instance.new("Frame", KeyGui)
     Overlay.Size = UDim2.new(1, 0, 1, 0)
-    Overlay.BackgroundColor3 = Color3.fromRGB(5, 5, 8)
-    Overlay.BackgroundTransparency = 0.35
+    Overlay.BackgroundColor3 = Color3.fromRGB(4, 6, 10)
+    Overlay.BackgroundTransparency = 0.4
     Overlay.BorderSizePixel = 0
 
     local Panel = Instance.new("Frame", KeyGui)
-    Panel.Size = UDim2.fromOffset(360, 240)
+    Panel.Size = UDim2.fromOffset(360, 235)
     Panel.AnchorPoint = Vector2.new(0.5, 0.5)
     Panel.Position = UDim2.new(0.5, 0, 0.5, 0)
     Panel.BackgroundColor3 = C.Bg
     Panel.BorderSizePixel = 0
-    Instance.new("UICorner", Panel).CornerRadius = UDim.new(0, 10)
+    Instance.new("UICorner", Panel).CornerRadius = UDim.new(0, 12)
     local PanelStroke = Instance.new("UIStroke", Panel)
-    PanelStroke.Color = C.Blue
-    PanelStroke.Thickness = 1.4
+    PanelStroke.Color = C.WindowStroke
+    PanelStroke.Thickness = 1
+
+    local KeyTopGlow = Instance.new("Frame", Panel)
+    KeyTopGlow.Size = UDim2.new(1, 0, 0, 2)
+    KeyTopGlow.BackgroundColor3 = C.Blue
+    KeyTopGlow.BorderSizePixel = 0
+    KeyTopGlow.BackgroundTransparency = 0.3
+    KeyTopGlow.ZIndex = 5
 
     local Header = Instance.new("Frame", Panel)
-    Header.Size = UDim2.new(1, 0, 0, 40)
+    Header.Size = UDim2.new(1, 0, 0, 42)
     Header.BackgroundColor3 = C.Top
     Header.BorderSizePixel = 0
-    Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 10)
+    Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 12)
 
     local HeaderFix = Instance.new("Frame", Header)
     HeaderFix.Size = UDim2.new(1, 0, 0.5, 0)
@@ -428,39 +442,47 @@ LaunchKeyUI = function(isExpiredTrial)
     TitleLabel.Font = Enum.Font.GothamBold
 
     local SubTitle = Instance.new("TextLabel", Panel)
-    SubTitle.Size = UDim2.new(1, -20, 0, 26)
-    SubTitle.Position = UDim2.fromOffset(10, 44)
+    SubTitle.Size = UDim2.new(1, -24, 0, 24)
+    SubTitle.Position = UDim2.fromOffset(12, 46)
     SubTitle.BackgroundTransparency = 1
     SubTitle.Text = isExpiredTrial and "Free trial has ended. Enter your license key:" or
                         "Enter license key from RMHUB Discord:"
     SubTitle.TextColor3 = isExpiredTrial and Color3.fromRGB(241, 196, 15) or C.Sub
     SubTitle.TextSize = 10
-    SubTitle.Font = Enum.Font.Gotham
+    SubTitle.Font = Enum.Font.GothamMedium
 
     local InputBox = Instance.new("Frame", Panel)
-    InputBox.Size = UDim2.new(1, -20, 0, 36)
-    InputBox.Position = UDim2.fromOffset(10, 76)
+    InputBox.Size = UDim2.new(1, -24, 0, 36)
+    InputBox.Position = UDim2.fromOffset(12, 74)
     InputBox.BackgroundColor3 = C.Card
     InputBox.BorderSizePixel = 0
-    Instance.new("UICorner", InputBox).CornerRadius = UDim.new(0, 6)
+    Instance.new("UICorner", InputBox).CornerRadius = UDim.new(0, 7)
     local InputStroke = Instance.new("UIStroke", InputBox)
-    InputStroke.Color = C.Border
+    InputStroke.Color = C.CardStroke
+    InputStroke.Thickness = 1
 
     local TextInput = Instance.new("TextBox", InputBox)
-    TextInput.Size = UDim2.new(1, -12, 1, 0)
-    TextInput.Position = UDim2.fromOffset(6, 0)
+    TextInput.Size = UDim2.new(1, -16, 1, 0)
+    TextInput.Position = UDim2.fromOffset(8, 0)
     TextInput.BackgroundTransparency = 1
     TextInput.Text = ""
     TextInput.PlaceholderText = "XXXXXX-XXXXXX-XXXXXX-XXXXXX"
-    TextInput.PlaceholderColor3 = Color3.fromRGB(80, 85, 100)
+    TextInput.PlaceholderColor3 = Color3.fromRGB(75, 85, 105)
     TextInput.TextColor3 = C.Txt
     TextInput.TextSize = 11
     TextInput.Font = Enum.Font.GothamMedium
     TextInput.ClearTextOnFocus = false
 
+    TextInput.Focused:Connect(function()
+        Tween(InputStroke, 0.2, {Color = C.Blue})
+    end)
+    TextInput.FocusLost:Connect(function()
+        Tween(InputStroke, 0.2, {Color = C.CardStroke})
+    end)
+
     local StatusLabel = Instance.new("TextLabel", Panel)
-    StatusLabel.Size = UDim2.new(1, -20, 0, 18)
-    StatusLabel.Position = UDim2.fromOffset(10, 118)
+    StatusLabel.Size = UDim2.new(1, -24, 0, 16)
+    StatusLabel.Position = UDim2.fromOffset(12, 114)
     StatusLabel.BackgroundTransparency = 1
     StatusLabel.Text = ""
     StatusLabel.TextColor3 = C.Sub
@@ -468,26 +490,42 @@ LaunchKeyUI = function(isExpiredTrial)
     StatusLabel.Font = Enum.Font.GothamMedium
 
     local SubmitBtn = Instance.new("TextButton", Panel)
-    SubmitBtn.Size = UDim2.new(1, -20, 0, 36)
-    SubmitBtn.Position = UDim2.fromOffset(10, 142)
+    SubmitBtn.Size = UDim2.new(1, -24, 0, 34)
+    SubmitBtn.Position = UDim2.fromOffset(12, 134)
     SubmitBtn.BackgroundColor3 = C.Blue
     SubmitBtn.Text = "ACTIVATE LICENSE"
-    SubmitBtn.TextColor3 = C.Txt
-    SubmitBtn.TextSize = 12
+    SubmitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    SubmitBtn.TextSize = 11.5
     SubmitBtn.Font = Enum.Font.GothamBold
     SubmitBtn.BorderSizePixel = 0
-    Instance.new("UICorner", SubmitBtn).CornerRadius = UDim.new(0, 6)
+    Instance.new("UICorner", SubmitBtn).CornerRadius = UDim.new(0, 7)
+
+    SubmitBtn.MouseEnter:Connect(function()
+        Tween(SubmitBtn, 0.15, {BackgroundColor3 = Color3.fromRGB(30, 175, 255)})
+    end)
+    SubmitBtn.MouseLeave:Connect(function()
+        if SubmitBtn.Active ~= false then
+            Tween(SubmitBtn, 0.15, {BackgroundColor3 = C.Blue})
+        end
+    end)
 
     local InfoFoot = Instance.new("TextButton", Panel)
-    InfoFoot.Size = UDim2.new(1, -20, 0, 24)
-    InfoFoot.Position = UDim2.fromOffset(10, 186)
+    InfoFoot.Size = UDim2.new(1, -24, 0, 26)
+    InfoFoot.Position = UDim2.fromOffset(12, 176)
     InfoFoot.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
     InfoFoot.Text = "Buy License: discord.gg/P7g4jpZTU"
     InfoFoot.TextColor3 = Color3.fromRGB(255, 255, 255)
     InfoFoot.TextSize = 10
-    InfoFoot.Font = Enum.Font.GothamMedium
+    InfoFoot.Font = Enum.Font.GothamBold
     InfoFoot.BorderSizePixel = 0
-    Instance.new("UICorner", InfoFoot).CornerRadius = UDim.new(0, 6)
+    Instance.new("UICorner", InfoFoot).CornerRadius = UDim.new(0, 7)
+
+    InfoFoot.MouseEnter:Connect(function()
+        Tween(InfoFoot, 0.15, {BackgroundColor3 = Color3.fromRGB(105, 118, 255)})
+    end)
+    InfoFoot.MouseLeave:Connect(function()
+        Tween(InfoFoot, 0.15, {BackgroundColor3 = Color3.fromRGB(88, 101, 242)})
+    end)
 
     InfoFoot.MouseButton1Click:Connect(function()
         local discordUrl = "https://discord.gg/P7g4jpZTU"
@@ -569,6 +607,8 @@ end
 
 StartMainScript = function(isTrialMode, trialTimeLeft)
     local IsRunning = true
+    ScriptActive = true
+    local RestoreVisualName = nil
     local W, H = 510, 315
 
     if isTrialMode then
@@ -646,7 +686,7 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
         return true
     end
 
-    player.CharacterAdded:Connect(function()
+    player.CharacterAdded:Connect(function(newChar)
         task.wait(0.5)
         CurrentBatchScraps = 0
         ChickenInTower = false
@@ -655,6 +695,13 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
         ArenaSentTime = 0
         ChickenInPitUntil = 0
         TowerDelayState = "Rebirth"
+        if not IsRunning or not (Flags and Flags.VisualName) then
+            pcall(function()
+                if RestoreVisualName then
+                    RestoreVisualName()
+                end
+            end)
+        end
     end)
 
     local function IsOurEvent(...)
@@ -2505,14 +2552,21 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
 
     local function Shutdown()
         IsRunning = false
+        ScriptActive = false
         for k in pairs(Flags) do
             Flags[k] = false
         end
+        pcall(function()
+            if RestoreVisualName then
+                RestoreVisualName()
+            end
+        end)
         pcall(function()
             if ActiveChatWs then
                 pcall(function()
                     ActiveChatWs:Close()
                 end)
+                ActiveChatWs = nil
             end
             Gui:Destroy()
         end)
@@ -2525,13 +2579,21 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
     Main.BackgroundColor3 = C.Bg
     Main.BorderSizePixel = 0
     Main.ClipsDescendants = true
-    Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 8)
+    Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 10)
     local MainStroke = Instance.new("UIStroke", Main)
-    MainStroke.Color = C.Blue
-    MainStroke.Thickness = 1.2
+    MainStroke.Color = C.WindowStroke
+    MainStroke.Thickness = 1
+
+    local TopGlow = Instance.new("Frame", Main)
+    TopGlow.Size = UDim2.new(1, 0, 0, 2)
+    TopGlow.Position = UDim2.new(0, 0, 0, 0)
+    TopGlow.BackgroundColor3 = C.Blue
+    TopGlow.BorderSizePixel = 0
+    TopGlow.BackgroundTransparency = 0.3
+    TopGlow.ZIndex = 5
 
     local Top = Instance.new("Frame", Main)
-    Top.Size = UDim2.new(1, 0, 0, 36)
+    Top.Size = UDim2.new(1, 0, 0, 38)
     Top.BackgroundColor3 = C.Top
     Top.BorderSizePixel = 0
 
@@ -2545,31 +2607,48 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
     if LogoAssetId then
         HeaderLogo = Instance.new("ImageLabel", Top)
         HeaderLogo.Size = UDim2.fromOffset(24, 24)
-        HeaderLogo.Position = UDim2.fromOffset(8, 6)
+        HeaderLogo.Position = UDim2.fromOffset(10, 7)
         HeaderLogo.BackgroundTransparency = 1
         HeaderLogo.Image = LogoAssetId
-        Instance.new("UICorner", HeaderLogo).CornerRadius = UDim.new(0, 5)
+        Instance.new("UICorner", HeaderLogo).CornerRadius = UDim.new(0, 6)
     end
 
     local Title = Instance.new("TextLabel", Top)
-    Title.Size = UDim2.new(1, HeaderLogo and -95 or -75, 1, 0)
-    Title.Position = UDim2.fromOffset(HeaderLogo and 38 or 12, 0)
+    Title.Size = UDim2.fromOffset(56, 38)
+    Title.Position = UDim2.fromOffset(HeaderLogo and 40 or 12, 0)
     Title.BackgroundTransparency = 1
-    Title.Text = isTrialMode and "RMHUB" or "RMHUB v2.8"
+    Title.Text = "RMHUB"
     Title.TextColor3 = C.Txt
     Title.TextSize = 13
     Title.Font = Enum.Font.GothamBold
     Title.TextXAlignment = Enum.TextXAlignment.Left
 
+    local VerBadge = Instance.new("Frame", Top)
+    VerBadge.Size = UDim2.fromOffset(38, 18)
+    VerBadge.Position = UDim2.fromOffset(HeaderLogo and 100 or 72, 10)
+    VerBadge.BackgroundColor3 = Color3.fromRGB(16, 26, 42)
+    VerBadge.BorderSizePixel = 0
+    Instance.new("UICorner", VerBadge).CornerRadius = UDim.new(0, 4)
+    local vbStroke = Instance.new("UIStroke", VerBadge)
+    vbStroke.Color = Color3.fromRGB(0, 162, 255)
+    vbStroke.Transparency = 0.6
+    local vbText = Instance.new("TextLabel", VerBadge)
+    vbText.Size = UDim2.new(1, 0, 1, 0)
+    vbText.BackgroundTransparency = 1
+    vbText.Text = isTrialMode and "TRIAL" or "v2.8"
+    vbText.TextColor3 = C.Blue
+    vbText.TextSize = 9.5
+    vbText.Font = Enum.Font.GothamBold
+
     local CloseBtn = Instance.new("TextButton", Top)
     CloseBtn.Size = UDim2.fromOffset(24, 24)
     CloseBtn.Position = UDim2.new(1, -30, 0.5, -12)
-    CloseBtn.BackgroundColor3 = Color3.fromRGB(24, 27, 36)
+    CloseBtn.BackgroundColor3 = Color3.fromRGB(18, 22, 32)
     CloseBtn.Text = "X"
     CloseBtn.TextColor3 = C.Sub
     CloseBtn.TextSize = 11
     CloseBtn.Font = Enum.Font.GothamBold
-    Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 5)
+    Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
     local CloseStroke = Instance.new("UIStroke", CloseBtn)
     CloseStroke.Color = C.Border
     CloseStroke.Thickness = 1
@@ -2577,7 +2656,7 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
     CloseBtn.MouseEnter:Connect(function()
         tw(CloseBtn, {
             BackgroundColor3 = C.Red,
-            TextColor3 = C.Txt
+            TextColor3 = Color3.fromRGB(255, 255, 255)
         }, 0.15)
         tw(CloseStroke, {
             Color = C.RedGlow
@@ -2585,7 +2664,7 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
     end)
     CloseBtn.MouseLeave:Connect(function()
         tw(CloseBtn, {
-            BackgroundColor3 = Color3.fromRGB(24, 27, 36),
+            BackgroundColor3 = Color3.fromRGB(18, 22, 32),
             TextColor3 = C.Sub
         }, 0.15)
         tw(CloseStroke, {
@@ -2597,12 +2676,12 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
     local MinBtn = Instance.new("TextButton", Top)
     MinBtn.Size = UDim2.fromOffset(24, 24)
     MinBtn.Position = UDim2.new(1, -58, 0.5, -12)
-    MinBtn.BackgroundColor3 = Color3.fromRGB(24, 27, 36)
+    MinBtn.BackgroundColor3 = Color3.fromRGB(18, 22, 32)
     MinBtn.Text = "-"
     MinBtn.TextSize = 13
     MinBtn.TextColor3 = C.Sub
     MinBtn.Font = Enum.Font.GothamBold
-    Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 5)
+    Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 6)
     local MinStroke = Instance.new("UIStroke", MinBtn)
     MinStroke.Color = C.Border
     MinStroke.Thickness = 1
@@ -2618,7 +2697,7 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
     end)
     MinBtn.MouseLeave:Connect(function()
         tw(MinBtn, {
-            BackgroundColor3 = Color3.fromRGB(24, 27, 36),
+            BackgroundColor3 = Color3.fromRGB(18, 22, 32),
             TextColor3 = C.Sub
         }, 0.15)
         tw(MinStroke, {
@@ -2629,14 +2708,14 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
     local MiniIcon = Instance.new("Frame", Gui)
     MiniIcon.Size = UDim2.fromOffset(50, 50)
     MiniIcon.Position = UDim2.new(0, 20, 0.5, -25)
-    MiniIcon.BackgroundColor3 = Color3.fromRGB(15, 16, 21)
+    MiniIcon.BackgroundColor3 = Color3.fromRGB(15, 18, 26)
     MiniIcon.BorderSizePixel = 0
     MiniIcon.Visible = false
     MiniIcon.Active = true
     Instance.new("UICorner", MiniIcon).CornerRadius = UDim.new(0, 10)
     local MiniStroke = Instance.new("UIStroke", MiniIcon)
-    MiniStroke.Color = C.Blue
-    MiniStroke.Thickness = 1.4
+    MiniStroke.Color = C.WindowStroke
+    MiniStroke.Thickness = 1.2
 
     if LogoAssetId then
         local IconImg = Instance.new("ImageLabel", MiniIcon)
@@ -2756,14 +2835,14 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
     end)
 
     local Sidebar = Instance.new("Frame", Main)
-    Sidebar.Size = UDim2.new(0, 114, 1, -36)
-    Sidebar.Position = UDim2.fromOffset(0, 36)
+    Sidebar.Size = UDim2.new(0, 114, 1, -38)
+    Sidebar.Position = UDim2.fromOffset(0, 38)
     Sidebar.BackgroundColor3 = C.Sidebar
     Sidebar.BorderSizePixel = 0
 
     local SidebarBorder = Instance.new("Frame", Main)
-    SidebarBorder.Size = UDim2.new(0, 1, 1, -36)
-    SidebarBorder.Position = UDim2.fromOffset(114, 36)
+    SidebarBorder.Size = UDim2.new(0, 1, 1, -38)
+    SidebarBorder.Position = UDim2.fromOffset(114, 38)
     SidebarBorder.BackgroundColor3 = C.Border
     SidebarBorder.BorderSizePixel = 0
 
@@ -2781,16 +2860,17 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
     TabPadding.PaddingBottom = UDim.new(0, 8)
 
     local Content = Instance.new("ScrollingFrame", Main)
-    Content.Size = UDim2.new(1, -126, 1, -46)
-    Content.Position = UDim2.fromOffset(120, 41)
+    Content.Size = UDim2.new(1, -126, 1, -48)
+    Content.Position = UDim2.fromOffset(120, 43)
     Content.BackgroundTransparency = 1
     Content.BorderSizePixel = 0
     Content.ScrollBarThickness = 2
     Content.ScrollBarImageColor3 = C.Blue
+    Content.ScrollBarImageTransparency = 0.3
     Content.CanvasSize = UDim2.new(0, 0, 0, 0)
     Content.AutomaticCanvasSize = Enum.AutomaticSize.Y
     local CL = Instance.new("UIListLayout", Content)
-    CL.Padding = UDim.new(0, 4)
+    CL.Padding = UDim.new(0, 5)
 
     local Pages, TabBtns = {}, {}
     local currentTab = "Farm"
@@ -2810,16 +2890,18 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
         for n, btnData in pairs(TabBtns) do
             local isSel = (n == name)
             tw(btnData.btn, {
-                BackgroundColor3 = isSel and Color3.fromRGB(14, 34, 56) or Color3.fromRGB(15, 19, 28)
+                BackgroundTransparency = isSel and 0 or 1,
+                BackgroundColor3 = isSel and C.SidebarActive or Color3.fromRGB(13, 16, 24)
             }, 0.15)
             tw(btnData.label, {
-                TextColor3 = isSel and C.Txt or C.Sub
+                TextColor3 = isSel and Color3.fromRGB(255, 255, 255) or C.Sub
             }, 0.15)
             tw(btnData.icon, {
-                ImageColor3 = isSel and C.Blue or C.Sub
+                ImageColor3 = isSel and Color3.fromRGB(0, 185, 255) or C.Sub
             }, 0.15)
             tw(btnData.stroke, {
-                Color = isSel and C.Blue or Color3.fromRGB(24, 32, 46)
+                Transparency = isSel and 0.55 or 1,
+                Color = isSel and C.Blue or C.Border
             }, 0.15)
             tw(btnData.indicator, {
                 BackgroundTransparency = isSel and 0 or 1
@@ -2840,14 +2922,16 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
     local MakeTab = function(name, order)
         local btn = Instance.new("TextButton", Sidebar)
         btn.Size = UDim2.new(1, 0, 0, 32)
-        btn.BackgroundColor3 = Color3.fromRGB(15, 19, 28)
+        btn.BackgroundColor3 = Color3.fromRGB(13, 16, 24)
+        btn.BackgroundTransparency = 1
         btn.BorderSizePixel = 0
         btn.Text = ""
         btn.LayoutOrder = order
         btn.AutoButtonColor = false
         Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
         local bStroke = Instance.new("UIStroke", btn)
-        bStroke.Color = Color3.fromRGB(24, 32, 46)
+        bStroke.Color = C.Blue
+        bStroke.Transparency = 1
         bStroke.Thickness = 1
 
         local indicator = Instance.new("Frame", btn)
@@ -2867,8 +2951,8 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
         icon.ImageColor3 = C.Sub
 
         local label = Instance.new("TextLabel", btn)
-        label.Size = UDim2.new(1, -32, 1, 0)
-        label.Position = UDim2.fromOffset(30, 0)
+        label.Size = UDim2.new(1, -30, 1, 0)
+        label.Position = UDim2.fromOffset(28, 0)
         label.BackgroundTransparency = 1
         label.Text = name
         label.TextColor3 = C.Sub
@@ -2878,14 +2962,14 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
 
         btn.MouseEnter:Connect(function()
             if currentTab ~= name then
-                tw(btn, { BackgroundColor3 = C.CardHover }, 0.12)
+                tw(btn, { BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(16, 21, 32) }, 0.12)
                 tw(label, { TextColor3 = C.Txt }, 0.12)
                 tw(icon, { ImageColor3 = C.Txt }, 0.12)
             end
         end)
         btn.MouseLeave:Connect(function()
             if currentTab ~= name then
-                tw(btn, { BackgroundColor3 = Color3.fromRGB(15, 19, 28) }, 0.12)
+                tw(btn, { BackgroundTransparency = 1 }, 0.12)
                 tw(label, { TextColor3 = C.Sub }, 0.12)
                 tw(icon, { ImageColor3 = C.Sub }, 0.12)
             end
@@ -2923,11 +3007,11 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
 
     local function AddToggle(parent, label, key, iconAsset)
         local f = Instance.new("Frame", parent)
-        f.Size = UDim2.new(1, 0, 0, 30)
+        f.Size = UDim2.new(1, 0, 0, 32)
         f.BackgroundColor3 = C.Card
-        Instance.new("UICorner", f).CornerRadius = UDim.new(0, 6)
+        Instance.new("UICorner", f).CornerRadius = UDim.new(0, 7)
         local fStroke = Instance.new("UIStroke", f)
-        fStroke.Color = C.Border
+        fStroke.Color = C.CardStroke
         fStroke.Thickness = 1
 
         local l = Instance.new("TextLabel", f)
@@ -2954,30 +3038,32 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
         b.Position = UDim2.new(1, -44, 0.5, -9)
         b.BackgroundColor3 = C.Off
         b.Text = ""
+        b.AutoButtonColor = false
         Instance.new("UICorner", b).CornerRadius = UDim.new(1, 0)
         local bStroke = Instance.new("UIStroke", b)
-        bStroke.Color = C.Border
+        bStroke.Color = Color3.fromRGB(34, 42, 58)
         bStroke.Thickness = 1
 
         local k = Instance.new("Frame", b)
         k.Size = UDim2.fromOffset(12, 12)
         k.Position = UDim2.fromOffset(3, 3)
-        k.BackgroundColor3 = Color3.fromRGB(245, 245, 250)
+        k.BackgroundColor3 = C.OffKnob
         Instance.new("UICorner", k).CornerRadius = UDim.new(1, 0)
 
         local function upd(on)
             tw(b, {
                 BackgroundColor3 = (on and C.Blue or C.Off)
-            })
+            }, 0.16)
             tw(bStroke, {
-                Color = (on and C.BlueGlow or C.Border)
-            })
+                Color = (on and Color3.fromRGB(0, 200, 255) or Color3.fromRGB(34, 42, 58))
+            }, 0.16)
             tw(k, {
-                Position = (on and UDim2.fromOffset(21, 3) or UDim2.fromOffset(3, 3))
-            })
+                Position = (on and UDim2.fromOffset(21, 3) or UDim2.fromOffset(3, 3)),
+                BackgroundColor3 = (on and Color3.fromRGB(255, 255, 255) or C.OffKnob)
+            }, 0.16)
             tw(fStroke, {
-                Color = (on and Color3.fromRGB(16, 44, 72) or C.Border)
-            })
+                Color = (on and Color3.fromRGB(20, 48, 76) or C.CardStroke)
+            }, 0.16)
         end
 
         ToggleUpdaters[key] = upd
@@ -3010,41 +3096,42 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
 
     local function AddButton(parent, label, callback)
         local b = Instance.new("TextButton", parent)
-        b.Size = UDim2.new(1, 0, 0, 30)
-        b.BackgroundColor3 = C.Card
+        b.Size = UDim2.new(1, 0, 0, 32)
+        b.BackgroundColor3 = Color3.fromRGB(18, 23, 34)
         b.Text = label
         b.TextColor3 = C.Txt
         b.TextSize = 11
         b.Font = Enum.Font.GothamBold
-        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+        b.AutoButtonColor = false
+        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 7)
         local bStroke = Instance.new("UIStroke", b)
-        bStroke.Color = C.Border
+        bStroke.Color = C.CardStroke
         bStroke.Thickness = 1
 
         b.MouseEnter:Connect(function()
             tw(b, {
-                BackgroundColor3 = C.CardHover
-            })
+                BackgroundColor3 = Color3.fromRGB(22, 30, 46)
+            }, 0.12)
             tw(bStroke, {
-                Color = C.Blue
-            })
+                Color = Color3.fromRGB(0, 162, 255)
+            }, 0.12)
         end)
         b.MouseLeave:Connect(function()
             tw(b, {
-                BackgroundColor3 = C.Card
-            })
+                BackgroundColor3 = Color3.fromRGB(18, 23, 34)
+            }, 0.12)
             tw(bStroke, {
-                Color = C.Border
-            })
+                Color = C.CardStroke
+            }, 0.12)
         end)
 
         b.MouseButton1Click:Connect(function()
             tw(b, {
-                BackgroundColor3 = C.Blue
-            }, 0.1)
-            task.delay(0.2, function()
+                BackgroundColor3 = Color3.fromRGB(0, 140, 230)
+            }, 0.08)
+            task.delay(0.15, function()
                 tw(b, {
-                    BackgroundColor3 = C.Card
+                    BackgroundColor3 = Color3.fromRGB(18, 23, 34)
                 }, 0.15)
             end)
             if callback then
@@ -3056,11 +3143,11 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
 
     local function AddBadge(parent, label, badgeText)
         local f = Instance.new("Frame", parent)
-        f.Size = UDim2.new(1, 0, 0, 30)
+        f.Size = UDim2.new(1, 0, 0, 32)
         f.BackgroundColor3 = C.Card
-        Instance.new("UICorner", f).CornerRadius = UDim.new(0, 6)
+        Instance.new("UICorner", f).CornerRadius = UDim.new(0, 7)
         local fStroke = Instance.new("UIStroke", f)
-        fStroke.Color = C.Border
+        fStroke.Color = C.CardStroke
         fStroke.Thickness = 1
 
         local l = Instance.new("TextLabel", f)
@@ -3076,29 +3163,29 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
         local b = Instance.new("TextLabel", f)
         b.Size = UDim2.fromOffset(80, 20)
         b.Position = UDim2.new(1, -88, 0.5, -10)
-        b.BackgroundColor3 = Color3.fromRGB(28, 31, 42)
+        b.BackgroundColor3 = Color3.fromRGB(22, 27, 38)
         b.Text = badgeText
         b.TextColor3 = Color3.fromRGB(160, 170, 190)
         b.TextSize = 9
         b.Font = Enum.Font.GothamBold
         Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
         local bStroke = Instance.new("UIStroke", b)
-        bStroke.Color = Color3.fromRGB(40, 45, 60)
+        bStroke.Color = Color3.fromRGB(34, 42, 58)
         bStroke.Thickness = 1
     end
 
     local function AddSlider(parent, label, maxV, defV, key)
         local f = Instance.new("Frame", parent)
-        f.Size = UDim2.new(1, 0, 0, 36)
+        f.Size = UDim2.new(1, 0, 0, 40)
         f.BackgroundColor3 = C.Card
-        Instance.new("UICorner", f).CornerRadius = UDim.new(0, 6)
+        Instance.new("UICorner", f).CornerRadius = UDim.new(0, 7)
         local fStroke = Instance.new("UIStroke", f)
-        fStroke.Color = C.Border
+        fStroke.Color = C.CardStroke
         fStroke.Thickness = 1
 
         local l = Instance.new("TextLabel", f)
-        l.Size = UDim2.new(1, -75, 0, 16)
-        l.Position = UDim2.fromOffset(10, 3)
+        l.Size = UDim2.new(1, -75, 0, 18)
+        l.Position = UDim2.fromOffset(10, 4)
         l.BackgroundTransparency = 1
         l.Text = label
         l.TextColor3 = C.Txt
@@ -3107,11 +3194,11 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
         l.TextXAlignment = Enum.TextXAlignment.Left
 
         local vl = Instance.new("TextBox", f)
-        vl.Size = UDim2.fromOffset(62, 16)
-        vl.Position = UDim2.new(1, -70, 0, 3)
+        vl.Size = UDim2.fromOffset(62, 18)
+        vl.Position = UDim2.new(1, -70, 0, 4)
         vl.BackgroundTransparency = 1
         vl.Text = tostring(defV) .. "/" .. tostring(maxV)
-        vl.TextColor3 = C.Blue
+        vl.TextColor3 = Color3.fromRGB(0, 180, 255)
         vl.TextSize = 11
         vl.Font = Enum.Font.GothamBold
         vl.TextXAlignment = Enum.TextXAlignment.Right
@@ -3119,8 +3206,8 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
 
         local bar = Instance.new("Frame", f)
         bar.Size = UDim2.new(1, -20, 0, 4)
-        bar.Position = UDim2.fromOffset(10, 23)
-        bar.BackgroundColor3 = Color3.fromRGB(36, 40, 52)
+        bar.Position = UDim2.fromOffset(10, 26)
+        bar.BackgroundColor3 = Color3.fromRGB(24, 30, 42)
         bar.BorderSizePixel = 0
         Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
 
@@ -3179,9 +3266,9 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
         b.BackgroundColor3 = C.Card
         b.Text = ""
         b.AutoButtonColor = false
-        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 5)
+        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
         local bStroke = Instance.new("UIStroke", b)
-        bStroke.Color = C.Border
+        bStroke.Color = C.CardStroke
         bStroke.Thickness = 1
 
         local dot = Instance.new("Frame", b)
@@ -3208,35 +3295,36 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
         pill.BorderSizePixel = 0
         Instance.new("UICorner", pill).CornerRadius = UDim.new(1, 0)
         local pillStroke = Instance.new("UIStroke", pill)
-        pillStroke.Color = C.Border
+        pillStroke.Color = Color3.fromRGB(34, 42, 58)
         pillStroke.Thickness = 1
 
         local knob = Instance.new("Frame", pill)
         knob.Size = UDim2.fromOffset(10, 10)
         knob.Position = UDim2.fromOffset(2, 2)
-        knob.BackgroundColor3 = Color3.fromRGB(245, 245, 250)
+        knob.BackgroundColor3 = C.OffKnob
         knob.BorderSizePixel = 0
         Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
 
         local function upd(on)
             tw(pill, {
                 BackgroundColor3 = (on and C.Blue or C.Off)
-            })
+            }, 0.16)
             tw(pillStroke, {
-                Color = (on and C.BlueGlow or C.Border)
-            })
+                Color = (on and Color3.fromRGB(0, 200, 255) or Color3.fromRGB(34, 42, 58))
+            }, 0.16)
             tw(knob, {
-                Position = (on and UDim2.fromOffset(14, 2) or UDim2.fromOffset(2, 2))
-            })
+                Position = (on and UDim2.fromOffset(14, 2) or UDim2.fromOffset(2, 2)),
+                BackgroundColor3 = (on and Color3.fromRGB(255, 255, 255) or C.OffKnob)
+            }, 0.16)
             tw(bStroke, {
-                Color = (on and (rarityColor or C.Blue) or C.Border)
-            })
+                Color = (on and (rarityColor or C.Blue) or C.CardStroke)
+            }, 0.16)
             tw(l, {
                 TextColor3 = (on and C.Txt or C.Sub)
-            })
+            }, 0.16)
             tw(dot, {
                 BackgroundTransparency = (on and 0 or 0.6)
-            })
+            }, 0.16)
         end
 
         ToggleUpdaters[key] = upd
@@ -3322,38 +3410,40 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
 
     local function AddInfo(k, v, isLive, isTrial)
         local f = Instance.new("Frame", InfoPage)
-        f.Size = UDim2.new(1, 0, 0, 30)
+        f.Size = UDim2.new(1, 0, 0, 32)
         f.BackgroundColor3 = C.Card
-        Instance.new("UICorner", f).CornerRadius = UDim.new(0, 6)
+        Instance.new("UICorner", f).CornerRadius = UDim.new(0, 7)
         local fStroke = Instance.new("UIStroke", f)
-        fStroke.Color = C.Border
+        fStroke.Color = C.CardStroke
         fStroke.Thickness = 1
 
         local l = Instance.new("TextLabel", f)
         l.Size = UDim2.new(0.5, 0, 1, 0)
-        l.Position = UDim2.fromOffset(10, 0)
+        l.Position = UDim2.fromOffset(12, 0)
         l.BackgroundTransparency = 1
         l.Text = k
-        l.TextColor3 = C.Txt
+        l.TextColor3 = C.Sub
         l.TextSize = 11
         l.Font = Enum.Font.GothamMedium
         l.TextXAlignment = Enum.TextXAlignment.Left
 
         local r = Instance.new("TextLabel", f)
-        r.Size = UDim2.new(0.5, -10, 1, 0)
+        r.Size = UDim2.new(0.5, -12, 1, 0)
         r.Position = UDim2.new(0.5, 0, 0, 0)
         r.BackgroundTransparency = 1
         r.Text = v
-        r.TextColor3 = C.Blue
+        r.TextColor3 = C.Txt
         r.TextSize = 11
         r.Font = Enum.Font.GothamBold
         r.TextXAlignment = Enum.TextXAlignment.Right
 
         if isLive then
             LiveCarriedLabel = r
+            r.TextColor3 = C.Blue
         end
         if isTrial then
             LiveTrialLabel = r
+            r.TextColor3 = Color3.fromRGB(241, 196, 15)
         end
     end
 
@@ -3397,12 +3487,19 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
     discBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
     discBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 
+    discBtn.MouseEnter:Connect(function()
+        Tween(discBtn, 0.15, {BackgroundColor3 = Color3.fromRGB(105, 118, 255)})
+    end)
+    discBtn.MouseLeave:Connect(function()
+        Tween(discBtn, 0.15, {BackgroundColor3 = Color3.fromRGB(88, 101, 242)})
+    end)
+
     local function BuildChatTab(page)
         page.Size = UDim2.new(1, 0, 1, 0)
         page.AutomaticSize = Enum.AutomaticSize.None
 
         local topBar = Instance.new("Frame", page)
-        topBar.Size = UDim2.new(1, 0, 0, 20)
+        topBar.Size = UDim2.new(1, 0, 0, 24)
         topBar.BackgroundTransparency = 1
 
         local statusDot = Instance.new("Frame", topBar)
@@ -3412,7 +3509,7 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
         Instance.new("UICorner", statusDot).CornerRadius = UDim.new(1, 0)
 
         local statusText = Instance.new("TextLabel", topBar)
-        statusText.Size = UDim2.new(1, -90, 1, 0)
+        statusText.Size = UDim2.new(1, -95, 1, 0)
         statusText.Position = UDim2.fromOffset(18, 0)
         statusText.BackgroundTransparency = 1
         statusText.Font = Enum.Font.GothamMedium
@@ -3422,89 +3519,112 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
         statusText.Text = "Connecting to live chat..."
 
         local reconnectBtn = Instance.new("TextButton", topBar)
-        reconnectBtn.Size = UDim2.fromOffset(70, 18)
-        reconnectBtn.Position = UDim2.new(1, -70, 0.5, -9)
+        reconnectBtn.Size = UDim2.fromOffset(72, 22)
+        reconnectBtn.Position = UDim2.new(1, -72, 0.5, -11)
         reconnectBtn.BackgroundColor3 = C.Card
         reconnectBtn.Text = "Reconnect"
         reconnectBtn.TextColor3 = C.Sub
         reconnectBtn.TextSize = 9.5
         reconnectBtn.Font = Enum.Font.GothamBold
-        Instance.new("UICorner", reconnectBtn).CornerRadius = UDim.new(0, 4)
+        Instance.new("UICorner", reconnectBtn).CornerRadius = UDim.new(0, 5)
         local recStroke = Instance.new("UIStroke", reconnectBtn)
-        recStroke.Color = C.Border
+        recStroke.Color = C.CardStroke
         recStroke.Thickness = 1
 
+        reconnectBtn.MouseEnter:Connect(function()
+            Tween(reconnectBtn, 0.15, {BackgroundColor3 = C.CardHover, TextColor3 = C.Txt})
+            Tween(recStroke, 0.15, {Color = C.Blue})
+        end)
+        reconnectBtn.MouseLeave:Connect(function()
+            Tween(reconnectBtn, 0.15, {BackgroundColor3 = C.Card, TextColor3 = C.Sub})
+            Tween(recStroke, 0.15, {Color = C.CardStroke})
+        end)
+
         local chatList = Instance.new("ScrollingFrame", page)
-        chatList.Size = UDim2.new(1, 0, 1, -56)
-        chatList.Position = UDim2.fromOffset(0, 24)
-        chatList.BackgroundColor3 = C.Card
+        chatList.Size = UDim2.new(1, 0, 1, -62)
+        chatList.Position = UDim2.fromOffset(0, 28)
+        chatList.BackgroundColor3 = Color3.fromRGB(11, 14, 21)
         chatList.BorderSizePixel = 0
         chatList.ScrollBarThickness = 3
         chatList.ScrollBarImageColor3 = C.Blue
         chatList.CanvasSize = UDim2.new(0, 0, 0, 0)
         chatList.AutomaticCanvasSize = Enum.AutomaticSize.Y
-        Instance.new("UICorner", chatList).CornerRadius = UDim.new(0, 6)
+        Instance.new("UICorner", chatList).CornerRadius = UDim.new(0, 7)
         local clStroke = Instance.new("UIStroke", chatList)
-        clStroke.Color = C.Border
+        clStroke.Color = C.CardStroke
         clStroke.Thickness = 1
 
         local msgLayout = Instance.new("UIListLayout", chatList)
-        msgLayout.Padding = UDim.new(0, 4)
+        msgLayout.Padding = UDim.new(0, 5)
         local msgPadding = Instance.new("UIPadding", chatList)
-        msgPadding.PaddingLeft = UDim.new(0, 6)
-        msgPadding.PaddingRight = UDim.new(0, 6)
-        msgPadding.PaddingTop = UDim.new(0, 6)
-        msgPadding.PaddingBottom = UDim.new(0, 6)
+        msgPadding.PaddingLeft = UDim.new(0, 7)
+        msgPadding.PaddingRight = UDim.new(0, 7)
+        msgPadding.PaddingTop = UDim.new(0, 7)
+        msgPadding.PaddingBottom = UDim.new(0, 7)
 
         local inputFrame = Instance.new("Frame", page)
-        inputFrame.Size = UDim2.new(1, 0, 0, 26)
-        inputFrame.Position = UDim2.new(0, 0, 1, -26)
+        inputFrame.Size = UDim2.new(1, 0, 0, 28)
+        inputFrame.Position = UDim2.new(0, 0, 1, -28)
         inputFrame.BackgroundTransparency = 1
 
         local inputBox = Instance.new("TextBox", inputFrame)
-        inputBox.Size = UDim2.new(1, -66, 1, 0)
-        inputBox.BackgroundColor3 = C.Card
+        inputBox.Size = UDim2.new(1, -68, 1, 0)
+        inputBox.BackgroundColor3 = Color3.fromRGB(14, 18, 27)
         inputBox.TextColor3 = C.Txt
         inputBox.Text = ""
         inputBox.PlaceholderText = "Type a public message... (Max 120 chars)"
-        inputBox.PlaceholderColor3 = C.Sub
+        inputBox.PlaceholderColor3 = Color3.fromRGB(75, 85, 105)
         inputBox.TextSize = 10
         inputBox.Font = Enum.Font.Gotham
         inputBox.ClearTextOnFocus = false
         inputBox.TextXAlignment = Enum.TextXAlignment.Left
-        Instance.new("UICorner", inputBox).CornerRadius = UDim.new(0, 5)
+        Instance.new("UICorner", inputBox).CornerRadius = UDim.new(0, 6)
         local ibStroke = Instance.new("UIStroke", inputBox)
-        ibStroke.Color = C.Border
+        ibStroke.Color = C.CardStroke
         ibStroke.Thickness = 1
         local ibPadding = Instance.new("UIPadding", inputBox)
-        ibPadding.PaddingLeft = UDim.new(0, 8)
-        ibPadding.PaddingRight = UDim.new(0, 8)
+        ibPadding.PaddingLeft = UDim.new(0, 9)
+        ibPadding.PaddingRight = UDim.new(0, 9)
+
+        inputBox.Focused:Connect(function()
+            Tween(ibStroke, 0.2, {Color = C.Blue})
+        end)
+        inputBox.FocusLost:Connect(function()
+            Tween(ibStroke, 0.2, {Color = C.CardStroke})
+        end)
 
         local sendBtn = Instance.new("TextButton", inputFrame)
-        sendBtn.Size = UDim2.fromOffset(60, 26)
-        sendBtn.Position = UDim2.new(1, -60, 0, 0)
+        sendBtn.Size = UDim2.fromOffset(62, 28)
+        sendBtn.Position = UDim2.new(1, -62, 0, 0)
         sendBtn.BackgroundColor3 = C.Blue
         sendBtn.Text = "Send"
         sendBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        sendBtn.TextSize = 10.5
+        sendBtn.TextSize = 11
         sendBtn.Font = Enum.Font.GothamBold
-        Instance.new("UICorner", sendBtn).CornerRadius = UDim.new(0, 5)
+        Instance.new("UICorner", sendBtn).CornerRadius = UDim.new(0, 6)
+
+        sendBtn.MouseEnter:Connect(function()
+            Tween(sendBtn, 0.15, {BackgroundColor3 = Color3.fromRGB(30, 175, 255)})
+        end)
+        sendBtn.MouseLeave:Connect(function()
+            Tween(sendBtn, 0.15, {BackgroundColor3 = C.Blue})
+        end)
 
         local function AddChatMessage(sender, role, text, timeStr)
             local msgCard = Instance.new("Frame", chatList)
             msgCard.Size = UDim2.new(1, 0, 0, 0)
             msgCard.AutomaticSize = Enum.AutomaticSize.Y
-            msgCard.BackgroundColor3 = Color3.fromRGB(15, 17, 23)
-            Instance.new("UICorner", msgCard).CornerRadius = UDim.new(0, 4)
+            msgCard.BackgroundColor3 = Color3.fromRGB(15, 19, 29)
+            Instance.new("UICorner", msgCard).CornerRadius = UDim.new(0, 5)
             local mcStroke = Instance.new("UIStroke", msgCard)
-            mcStroke.Color = (role == "DEV" and C.Blue or Color3.fromRGB(25, 36, 52))
+            mcStroke.Color = (role == "DEV" and Color3.fromRGB(0, 162, 255) or Color3.fromRGB(24, 32, 47))
             mcStroke.Thickness = 1
 
             local cardPad = Instance.new("UIPadding", msgCard)
-            cardPad.PaddingLeft = UDim.new(0, 6)
-            cardPad.PaddingRight = UDim.new(0, 6)
-            cardPad.PaddingTop = UDim.new(0, 4)
-            cardPad.PaddingBottom = UDim.new(0, 4)
+            cardPad.PaddingLeft = UDim.new(0, 7)
+            cardPad.PaddingRight = UDim.new(0, 7)
+            cardPad.PaddingTop = UDim.new(0, 5)
+            cardPad.PaddingBottom = UDim.new(0, 5)
 
             local cardLayout = Instance.new("UIListLayout", msgCard)
             cardLayout.Padding = UDim.new(0, 2)
@@ -3517,7 +3637,7 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
             header.TextXAlignment = Enum.TextXAlignment.Left
 
             local roleBadge = role == "DEV" and "[DEV] " or (role == "VIP" and "[VIP] " or "")
-            local roleColor = role == "DEV" and "#00d2ff" or (role == "VIP" and "#f1c40f" or "#8292aa")
+            local roleColor = role == "DEV" and "#00a2ff" or (role == "VIP" and "#f1c40f" or "#8292aa")
             header.RichText = true
             local badgeStr = roleBadge ~= "" and string.format("<font color=\"%s\"><b>%s</b></font>", roleColor, roleBadge) or ""
             local safeSender = tostring(sender):gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;")
@@ -3697,25 +3817,74 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
         end
     end)
 
+    local originalPlayerDisplayName = player.DisplayName
     local originalOverheadData = {}
+
+    RestoreVisualName = function()
+        pcall(function()
+            local char = player.Character
+            if char then
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    hum.DisplayName = originalPlayerDisplayName or player.DisplayName
+                end
+
+                if char:FindFirstChild("Head") then
+                    if char.Head:FindFirstChild("ErdevaVisualTag") then
+                        char.Head.ErdevaVisualTag:Destroy()
+                    end
+                    if char.Head:FindFirstChild("RMHUBVisualTag") then
+                        char.Head.RMHUBVisualTag:Destroy()
+                    end
+                end
+
+                for lbl, data in pairs(originalOverheadData) do
+                    if lbl and lbl.Parent then
+                        pcall(function()
+                            lbl.Text = data.Text
+                            lbl.TextColor3 = data.TextColor3
+                            local stroke = lbl:FindFirstChildOfClass("UIStroke")
+                            if stroke and data.StrokeColor then
+                                stroke.Color = data.StrokeColor
+                            end
+                        end)
+                    end
+                end
+                table.clear(originalOverheadData)
+            end
+        end)
+    end
 
     local function UpdateVisualName()
         local char = player.Character
         if not char then return end
 
-        if char:FindFirstChild("Head") and char.Head:FindFirstChild("ErdevaVisualTag") then
-            char.Head.ErdevaVisualTag:Destroy()
+        if not Flags.VisualName then
+            RestoreVisualName()
+            return
         end
 
         local hum = char:FindFirstChildOfClass("Humanoid")
-        if hum and Flags.VisualName then
+        if hum then
             if hum.DisplayName ~= "RMHUB" then
+                if hum.DisplayName ~= originalPlayerDisplayName and hum.DisplayName ~= "" then
+                    originalPlayerDisplayName = hum.DisplayName
+                end
                 hum.DisplayName = "RMHUB"
             end
         end
 
+        if char:FindFirstChild("Head") then
+            if char.Head:FindFirstChild("ErdevaVisualTag") then
+                char.Head.ErdevaVisualTag:Destroy()
+            end
+            if char.Head:FindFirstChild("RMHUBVisualTag") then
+                char.Head.RMHUBVisualTag:Destroy()
+            end
+        end
+
         for _, bg in ipairs(char:GetDescendants()) do
-            if bg:IsA("BillboardGui") and bg.Name ~= "ErdevaVisualTag" then
+            if bg:IsA("BillboardGui") and bg.Name ~= "ErdevaVisualTag" and bg.Name ~= "RMHUBVisualTag" then
                 for _, lbl in ipairs(bg:GetDescendants()) do
                     if lbl:IsA("TextLabel") then
                         local t = lbl.Text:lower()
@@ -3723,39 +3892,30 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
                         local pd = player.DisplayName:lower()
                         local ln = lbl.Name:lower()
 
-                        local isNameLabel = (t == pn or t == pd or t == "erdeva" or t:find(pn) or t:find(pd) or ln == "name" or ln == "playername" or ln == "username" or ln:find("namelabel"))
+                        local isNameLabel = (originalOverheadData[lbl] ~= nil) or (t == pn or t == pd or t == "erdeva" or t == "rmhub" or t:find(pn) or t:find(pd) or ln == "name" or ln == "playername" or ln == "username" or ln:find("namelabel"))
                         local isTitle = (t:find("rebirth") or t:find("diamond") or t:find("tier") or t:find("level") or t:find("coop") or t:find("king") or t:find("stone"))
 
                         if isNameLabel and not isTitle then
-                            if Flags.VisualName then
-                                if not originalOverheadData[lbl] then
-                                    originalOverheadData[lbl] = {
-                                        Text = lbl.Text,
-                                        TextColor3 = lbl.TextColor3
-                                    }
-                                end
-                                if lbl.Text ~= "RMHUB" then
-                                    lbl.Text = "RMHUB"
-                                end
-                                lbl.TextColor3 = Color3.fromRGB(0, 162, 255)
+                            if not originalOverheadData[lbl] then
                                 local stroke = lbl:FindFirstChildOfClass("UIStroke")
-                                if stroke then
-                                    stroke.Color = Color3.fromRGB(10, 20, 35)
-                                end
-                            else
-                                if originalOverheadData[lbl] then
-                                    lbl.Text = originalOverheadData[lbl].Text
-                                    lbl.TextColor3 = originalOverheadData[lbl].TextColor3
-                                end
+                                originalOverheadData[lbl] = {
+                                    Text = lbl.Text,
+                                    TextColor3 = lbl.TextColor3,
+                                    StrokeColor = stroke and stroke.Color or nil
+                                }
+                            end
+                            if lbl.Text ~= "RMHUB" then
+                                lbl.Text = "RMHUB"
+                            end
+                            lbl.TextColor3 = Color3.fromRGB(0, 162, 255)
+                            local stroke = lbl:FindFirstChildOfClass("UIStroke")
+                            if stroke then
+                                stroke.Color = Color3.fromRGB(10, 20, 35)
                             end
                         end
                     end
                 end
             end
-        end
-
-        if not Flags.VisualName then
-            table.clear(originalOverheadData)
         end
     end
 
