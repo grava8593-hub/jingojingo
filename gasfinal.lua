@@ -26,6 +26,7 @@ end)
 
 local API_URL = "http://78.154.103.42:9458"
 local CHAT_WS_URL = "ws://78.154.103.42:9458"
+-- Link logo RMHUB dari repository GitHub Anda
 local LOGO_URL = "https://raw.githubusercontent.com/grava8593-hub/icon/main/rmhub.png"
 local LOGO_FILE = "rmhub.png"
 local KEY_FILE = "rmhub_saved_key.txt"
@@ -428,7 +429,7 @@ LaunchKeyUI = function(isExpiredTrial)
     local TitleLabel = Instance.new("TextLabel", Header)
     TitleLabel.Size = UDim2.new(1, 0, 1, 0)
     TitleLabel.BackgroundTransparency = 1
-    TitleLabel.Text = isExpiredTrial and "TRIAL EXPIRED" or "RMHUB v2.9"
+    TitleLabel.Text = isExpiredTrial and "TRIAL EXPIRED" or "RMHUB v3.1"
     TitleLabel.TextColor3 = C.Txt
     TitleLabel.TextSize = 13
     TitleLabel.Font = Enum.Font.GothamBold
@@ -2620,7 +2621,7 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
     local vbText = Instance.new("TextLabel", VerBadge)
     vbText.Size = UDim2.new(1, 0, 1, 0)
     vbText.BackgroundTransparency = 1
-    vbText.Text = isTrialMode and "TRIAL" or "v2.9"
+    vbText.Text = isTrialMode and "TRIAL" or "v3.1"
     vbText.TextColor3 = C.Blue
     vbText.TextSize = 9.5
     vbText.Font = Enum.Font.GothamBold
@@ -2860,9 +2861,16 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
 
     local Pages, TabBtns = {}, {}
     local currentTab = "Farm"
+    local unreadChatCount = 0
 
     local function SetTab(name)
         currentTab = name
+        if name == "Chat" then
+            unreadChatCount = 0
+            if TabBtns["Chat"] and TabBtns["Chat"].badge then
+                TabBtns["Chat"].badge.Visible = false
+            end
+        end
         for n, p in pairs(Pages) do
             p.Visible = (n == name)
         end
@@ -2901,7 +2909,7 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
         Plot = "rbxassetid://6031265976",
         Battle = "rbxassetid://10734975692",
         Events = "rbxassetid://6031075931",
-        Chat = "rbxassetid://10723415766",
+        Chat = "rbxassetid://10734888228",
         Info = "rbxassetid://6031154871"
     }
 
@@ -2937,7 +2945,7 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
         icon.ImageColor3 = C.Sub
 
         local label = Instance.new("TextLabel", btn)
-        label.Size = UDim2.new(1, -30, 1, 0)
+        label.Size = UDim2.new(1, -54, 1, 0)
         label.Position = UDim2.fromOffset(28, 0)
         label.BackgroundTransparency = 1
         label.Text = name
@@ -2945,6 +2953,31 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
         label.TextSize = 10.5
         label.Font = Enum.Font.GothamBold
         label.TextXAlignment = Enum.TextXAlignment.Left
+
+        local badge = Instance.new("Frame", btn)
+        badge.Size = UDim2.fromOffset(16, 14)
+        badge.AutomaticSize = Enum.AutomaticSize.X
+        badge.Position = UDim2.new(1, -7, 0.5, 0)
+        badge.AnchorPoint = Vector2.new(1, 0.5)
+        badge.BackgroundColor3 = Color3.fromRGB(235, 60, 75)
+        badge.BorderSizePixel = 0
+        badge.Visible = false
+        badge.ZIndex = 5
+        Instance.new("UICorner", badge).CornerRadius = UDim.new(1, 0)
+
+        local badgePad = Instance.new("UIPadding", badge)
+        badgePad.PaddingLeft = UDim.new(0, 4)
+        badgePad.PaddingRight = UDim.new(0, 4)
+
+        local badgeText = Instance.new("TextLabel", badge)
+        badgeText.Size = UDim2.new(1, 0, 1, 0)
+        badgeText.AutomaticSize = Enum.AutomaticSize.X
+        badgeText.BackgroundTransparency = 1
+        badgeText.TextColor3 = Color3.fromRGB(255, 255, 255)
+        badgeText.Font = Enum.Font.GothamBold
+        badgeText.TextSize = 8.5
+        badgeText.Text = "0"
+        badgeText.TextXAlignment = Enum.TextXAlignment.Center
 
         btn.MouseEnter:Connect(function()
             if currentTab ~= name then
@@ -2966,7 +2999,9 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
             icon = icon,
             label = label,
             stroke = bStroke,
-            indicator = indicator
+            indicator = indicator,
+            badge = badge,
+            badgeText = badgeText
         }
 
         local page = Instance.new("Frame", Content)
@@ -3433,8 +3468,122 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
         end
     end
 
-    AddInfo("User", player.Name, false, false)
-    AddInfo("Hub Version", "v2.9", false, false)
+    local ProfileCard = Instance.new("Frame")
+    ProfileCard.Size = UDim2.new(1, 0, 0, 64)
+    ProfileCard.BackgroundColor3 = C.Card
+    ProfileCard.BorderSizePixel = 0
+    ProfileCard.Parent = InfoPage
+    Instance.new("UICorner", ProfileCard).CornerRadius = UDim.new(0, 8)
+
+    local pStroke = Instance.new("UIStroke")
+    pStroke.Color = C.CardStroke
+    pStroke.Thickness = 1
+    pStroke.Transparency = 0.38
+    pStroke.Parent = ProfileCard
+
+    local AvatarImg = Instance.new("ImageLabel")
+    AvatarImg.Size = UDim2.fromOffset(46, 46)
+    AvatarImg.Position = UDim2.fromOffset(9, 9)
+    AvatarImg.BackgroundColor3 = Color3.fromRGB(22, 28, 40)
+    AvatarImg.Image = "rbxthumb://type=AvatarHeadShot&id=" .. player.UserId .. "&w=150&h=150"
+    AvatarImg.BorderSizePixel = 0
+    AvatarImg.Parent = ProfileCard
+    Instance.new("UICorner", AvatarImg).CornerRadius = UDim.new(1, 0)
+
+    local aStroke = Instance.new("UIStroke")
+    aStroke.Color = C.Blue
+    aStroke.Thickness = 1.5
+    aStroke.Parent = AvatarImg
+
+    local DisplayNameLbl = Instance.new("TextLabel")
+    DisplayNameLbl.Size = UDim2.new(1, -70, 0, 16)
+    DisplayNameLbl.Position = UDim2.fromOffset(64, 8)
+    DisplayNameLbl.BackgroundTransparency = 1
+    DisplayNameLbl.Text = player.DisplayName
+    DisplayNameLbl.TextColor3 = C.Txt
+    DisplayNameLbl.Font = Enum.Font.GothamBold
+    DisplayNameLbl.TextSize = 12
+    DisplayNameLbl.TextXAlignment = Enum.TextXAlignment.Left
+    DisplayNameLbl.Parent = ProfileCard
+
+    local UsernameLbl = Instance.new("TextLabel")
+    UsernameLbl.Size = UDim2.new(1, -70, 0, 14)
+    UsernameLbl.Position = UDim2.fromOffset(64, 24)
+    UsernameLbl.BackgroundTransparency = 1
+    UsernameLbl.Text = "@" .. player.Name .. "  •  ID: " .. tostring(player.UserId)
+    UsernameLbl.TextColor3 = C.Sub
+    UsernameLbl.Font = Enum.Font.GothamMedium
+    UsernameLbl.TextSize = 9
+    UsernameLbl.TextXAlignment = Enum.TextXAlignment.Left
+    UsernameLbl.Parent = ProfileCard
+
+    local execName = (identifyexecutor and identifyexecutor()) or (getexecutorname and getexecutorname()) or "Executor"
+    local UserMetaLbl = Instance.new("TextLabel")
+    UserMetaLbl.Size = UDim2.new(1, -70, 0, 14)
+    UserMetaLbl.Position = UDim2.fromOffset(64, 40)
+    UserMetaLbl.BackgroundTransparency = 1
+    UserMetaLbl.Text = "Account: " .. player.AccountAge .. " Days  |  " .. execName
+    UserMetaLbl.TextColor3 = C.Blue
+    UserMetaLbl.Font = Enum.Font.Gotham
+    UserMetaLbl.TextSize = 8.5
+    UserMetaLbl.TextXAlignment = Enum.TextXAlignment.Left
+    UserMetaLbl.Parent = ProfileCard
+
+    local StatsCard = Instance.new("Frame")
+    StatsCard.Size = UDim2.new(1, 0, 0, 34)
+    StatsCard.BackgroundColor3 = C.Card
+    StatsCard.BorderSizePixel = 0
+    StatsCard.Parent = InfoPage
+    Instance.new("UICorner", StatsCard).CornerRadius = UDim.new(0, 7)
+
+    local sStroke = Instance.new("UIStroke")
+    sStroke.Color = C.CardStroke
+    sStroke.Thickness = 1
+    sStroke.Transparency = 0.38
+    sStroke.Parent = StatsCard
+
+    local LiveStatsLbl = Instance.new("TextLabel")
+    LiveStatsLbl.Size = UDim2.new(1, -20, 1, 0)
+    LiveStatsLbl.Position = UDim2.fromOffset(10, 0)
+    LiveStatsLbl.BackgroundTransparency = 1
+    LiveStatsLbl.Text = "FPS: Scanning...  |  Ping: ...ms  |  Server: OK"
+    LiveStatsLbl.TextColor3 = Color3.fromRGB(130, 240, 160)
+    LiveStatsLbl.Font = Enum.Font.GothamMedium
+    LiveStatsLbl.TextSize = 9.5
+    LiveStatsLbl.TextXAlignment = Enum.TextXAlignment.Left
+    LiveStatsLbl.Parent = StatsCard
+
+    task.spawn(function()
+        local lastTime = os.clock()
+        local frameCount = 0
+        local fps = 60
+        local renderConn = nil
+        renderConn = RunService.RenderStepped:Connect(function()
+            if not IsRunning or not LiveStatsLbl or not LiveStatsLbl.Parent then
+                if renderConn then
+                    renderConn:Disconnect()
+                    renderConn = nil
+                end
+                return
+            end
+            frameCount = frameCount + 1
+            local curTime = os.clock()
+            if curTime - lastTime >= 1 then
+                fps = frameCount
+                frameCount = 0
+                lastTime = curTime
+                local ping = "0"
+                pcall(function()
+                    local statsItem = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]
+                    if statsItem then ping = string.split(statsItem:GetValueString(), " ")[1] end
+                end)
+                local jobStr = (game.JobId and #game.JobId > 0) and string.sub(game.JobId, 1, 8) or "Local"
+                LiveStatsLbl.Text = string.format("FPS: %d  |  Ping: %s ms  |  Job: %s", fps, ping, jobStr)
+            end
+        end)
+    end)
+
+    AddInfo("Hub Version", "v3.1", false, false)
     if isTrialMode then
         AddInfo("Trial Remaining", "Calculating...", false, true)
     else
@@ -3715,6 +3864,23 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
                         end
                     elseif data.type == "chat" then
                         AddChatMessage(data.user or "Anon", data.role or "MEMBER", data.text or "", data.time or "")
+                        if currentTab ~= "Chat" then
+                            unreadChatCount = unreadChatCount + 1
+                            if TabBtns["Chat"] and TabBtns["Chat"].badge then
+                                local b = TabBtns["Chat"].badge
+                                local bt = TabBtns["Chat"].badgeText
+                                b.Visible = true
+                                if unreadChatCount > 99 then
+                                    bt.Text = "99+"
+                                else
+                                    bt.Text = tostring(unreadChatCount)
+                                end
+                                tw(b, { Size = UDim2.fromOffset(20, 16) }, 0.08)
+                                task.delay(0.08, function()
+                                    tw(b, { Size = UDim2.fromOffset(16, 14) }, 0.08)
+                                end)
+                            end
+                        end
                     elseif data.type == "online_count" then
                         local c = data.count or 1
                         statusText.Text = string.format("🟢 Online: %d %s", c, c == 1 and "user" or "users")
