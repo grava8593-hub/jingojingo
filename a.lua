@@ -2901,7 +2901,7 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
         Plot = "rbxassetid://6031265976",
         Battle = "rbxassetid://10734975692",
         Events = "rbxassetid://6031075931",
-        Chat = "rbxassetid://1044089049",
+        Chat = "rbxassetid://7733993311",
         Info = "rbxassetid://6031154871"
     }
 
