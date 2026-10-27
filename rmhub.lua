@@ -26,7 +26,6 @@ end)
 
 local API_URL = "http://78.154.103.42:9458"
 local CHAT_WS_URL = "ws://78.154.103.42:9458"
--- Link logo RMHUB dari repository GitHub Anda
 local LOGO_URL = "https://raw.githubusercontent.com/grava8593-hub/icon/main/rmhub.png"
 local LOGO_FILE = "rmhub.png"
 local KEY_FILE = "rmhub_saved_key.txt"
