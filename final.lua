@@ -26,7 +26,6 @@ end)
 
 local API_URL = "http://78.154.103.42:9458"
 local CHAT_WS_URL = "ws://78.154.103.42:9458"
--- Link logo RMHUB dari repository GitHub Anda
 local LOGO_URL = "https://raw.githubusercontent.com/grava8593-hub/icon/main/rmhub.png"
 local LOGO_FILE = "rmhub.png"
 local KEY_FILE = "rmhub_saved_key.txt"
@@ -429,7 +428,7 @@ LaunchKeyUI = function(isExpiredTrial)
     local TitleLabel = Instance.new("TextLabel", Header)
     TitleLabel.Size = UDim2.new(1, 0, 1, 0)
     TitleLabel.BackgroundTransparency = 1
-    TitleLabel.Text = isExpiredTrial and "TRIAL EXPIRED" or "RMHUB v2.8"
+    TitleLabel.Text = isExpiredTrial and "TRIAL EXPIRED" or "RMHUB v3.0"
     TitleLabel.TextColor3 = C.Txt
     TitleLabel.TextSize = 13
     TitleLabel.Font = Enum.Font.GothamBold
@@ -2621,7 +2620,7 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
     local vbText = Instance.new("TextLabel", VerBadge)
     vbText.Size = UDim2.new(1, 0, 1, 0)
     vbText.BackgroundTransparency = 1
-    vbText.Text = isTrialMode and "TRIAL" or "v2.8"
+    vbText.Text = isTrialMode and "TRIAL" or "v3.0"
     vbText.TextColor3 = C.Blue
     vbText.TextSize = 9.5
     vbText.Font = Enum.Font.GothamBold
@@ -2902,7 +2901,7 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
         Plot = "rbxassetid://6031265976",
         Battle = "rbxassetid://10734975692",
         Events = "rbxassetid://6031075931",
-        Chat = "rbxassetid://10723415766",
+        Chat = "rbxassetid://1044089049",
         Info = "rbxassetid://6031154871"
     }
 
@@ -3549,7 +3548,7 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
         end)
     end)
 
-    AddInfo("Hub Version", "v2.8", false, false)
+    AddInfo("Hub Version", "v3.0", false, false)
     if isTrialMode then
         AddInfo("Trial Remaining", "Calculating...", false, true)
     else
