@@ -2761,21 +2761,22 @@ StartMainScript = function(isTrialMode, trialTimeLeft)
     Sidebar.BackgroundColor3 = C.Sidebar
     Sidebar.BorderSizePixel = 0
 
-    local SidebarBorder = Instance.new("Frame", Sidebar)
-    SidebarBorder.Size = UDim2.new(0, 1, 1, 0)
-    SidebarBorder.Position = UDim2.new(1, -1, 0, 0)
+    local SidebarBorder = Instance.new("Frame", Main)
+    SidebarBorder.Size = UDim2.new(0, 1, 1, -36)
+    SidebarBorder.Position = UDim2.fromOffset(114, 36)
     SidebarBorder.BackgroundColor3 = C.Border
     SidebarBorder.BorderSizePixel = 0
 
     local TabList = Instance.new("UIListLayout", Sidebar)
     TabList.FillDirection = Enum.FillDirection.Vertical
+    TabList.SortOrder = Enum.SortOrder.LayoutOrder
     TabList.HorizontalAlignment = Enum.HorizontalAlignment.Center
     TabList.VerticalAlignment = Enum.VerticalAlignment.Top
     TabList.Padding = UDim.new(0, 4)
 
     local TabPadding = Instance.new("UIPadding", Sidebar)
-    TabPadding.PaddingLeft = UDim.new(0, 7)
-    TabPadding.PaddingRight = UDim.new(0, 7)
+    TabPadding.PaddingLeft = UDim.new(0, 6)
+    TabPadding.PaddingRight = UDim.new(0, 6)
     TabPadding.PaddingTop = UDim.new(0, 8)
     TabPadding.PaddingBottom = UDim.new(0, 8)
 
