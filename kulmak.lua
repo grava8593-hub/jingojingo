@@ -341,16 +341,17 @@ local function TriggerPromptInstant(prompt)
         prompt.MaxActivationDistance = math.huge
         if typeof(fireproximityprompt) == "function" then
             fireproximityprompt(prompt)
-        end
-        local hold = prompt.HoldDuration or 0
-        if prompt.InputHoldBegin and prompt.InputHoldEnd then
-            prompt:InputHoldBegin()
-            if hold > 0 then
-                task.wait(hold + 0.05)
-            else
-                task.wait(0.04)
+        else
+            local hold = prompt.HoldDuration or 0
+            if prompt.InputHoldBegin and prompt.InputHoldEnd then
+                prompt:InputHoldBegin()
+                if hold > 0 then
+                    task.wait(hold + 0.05)
+                else
+                    task.wait(0.04)
+                end
+                prompt:InputHoldEnd()
             end
-            prompt:InputHoldEnd()
         end
     end)
 end
@@ -720,15 +721,18 @@ local function SetupVisualDummy(enabled)
     end
 end
 
-local function UndergroundReturnToBase(targetPos, speed)
+local function SurfaceGlideToBase(targetPos, speed)
     local root = GetRoot()
     local hum = GetHum()
     local char = LP.Character
     if not root or not hum or not char then return false end
 
     local targetV3 = typeof(targetPos) == "CFrame" and targetPos.Position or targetPos
+    local dist = (targetV3 - root.Position).Magnitude
+    if dist < 4 then return true end
 
-    -- 1. Continuous noclip under the map
+    -- Safe above-ground glide: NEVER dive underground or into void!
+    -- Keeps character gliding smoothly above ground level straight to target
     local noclipActive = true
     local noclipConn = RunService.Stepped:Connect(function()
         if not noclipActive then return end
@@ -742,17 +746,13 @@ local function UndergroundReturnToBase(targetPos, speed)
         end
     end)
 
-    -- Safe underground altitude (-22 studs, safely above FallenPartsDestroyHeight)
-    local voidLimit = (Workspace.FallenPartsDestroyHeight or -500) + 70
-    local undergroundY = math.clamp(math.min(root.Position.Y, targetV3.Y) - 22, voidLimit, 10000)
-
     root.Anchored = false
     if hum then
         hum.PlatformStand = true
     end
 
     local bv = Instance.new("BodyVelocity")
-    bv.Name = "ErdevaUnderBV"
+    bv.Name = "ErdevaGlideBV"
     bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
     bv.Velocity = Vector3.zero
     bv.Parent = root
@@ -760,38 +760,24 @@ local function UndergroundReturnToBase(targetPos, speed)
     root.AssemblyLinearVelocity = Vector3.zero
     root.AssemblyAngularVelocity = Vector3.zero
 
-    -- Phase A: Quick dive down under the map (~0.18s)
-    local diveTarget = Vector3.new(root.Position.X, undergroundY, root.Position.Z)
-    local diveTw = TweenService:Create(root, TweenInfo.new(0.18, Enum.EasingStyle.Linear), {CFrame = CFrame.new(diveTarget)})
-    diveTw:Play()
-    diveTw.Completed:Wait()
+    -- SPEED: 160-180 studs/s, travel time ~3-4s directly to plot baseplate (replicates real physics packets)
+    local travelSpeed = math.clamp(speed or State.ReturnSpeed or 170, 140, 200)
+    local duration = math.clamp(dist / travelSpeed, 0.4, 6.0)
 
-    -- Phase B: Underground Linear Tween to below plot/nest
-    -- SPEED: 220-250 studs/s, travel time only 3-5 seconds (leaves >24s of egg timer intact!)
-    local distUnder = (Vector2.new(targetV3.X - root.Position.X, targetV3.Z - root.Position.Z)).Magnitude
-    local returnSpeed = math.clamp(speed or State.ReturnSpeed or 220, 180, 260)
-    local travelDuration = math.clamp(distUnder / returnSpeed, 0.4, 5.5)
-
-    local undergroundBasePos = Vector3.new(targetV3.X, undergroundY, targetV3.Z)
-    local transTw = TweenService:Create(root, TweenInfo.new(travelDuration, Enum.EasingStyle.Linear), {CFrame = CFrame.new(undergroundBasePos)})
-    transTw:Play()
+    local arrivalTarget = CFrame.new(targetV3 + Vector3.new(0, 1.8, 0))
+    local glideTw = TweenService:Create(root, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = arrivalTarget})
+    glideTw:Play()
 
     local started = os.clock()
-    while transTw.PlaybackState == Enum.PlaybackState.Playing and State.Running do
+    while glideTw.PlaybackState == Enum.PlaybackState.Playing and State.Running do
         root.AssemblyLinearVelocity = Vector3.zero
         root.AssemblyAngularVelocity = Vector3.zero
-        if (os.clock() - started) > (travelDuration + 0.8) then
-            transTw:Cancel()
+        if (os.clock() - started) > (duration + 1.0) then
+            glideTw:Cancel()
             break
         end
         task.wait(0.03)
     end
-
-    -- Phase C: Quick ascend up directly onto plot baseplate (~0.18s)
-    local ascendTarget = CFrame.new(targetV3 + Vector3.new(0, 1.8, 0))
-    local ascendTw = TweenService:Create(root, TweenInfo.new(0.18, Enum.EasingStyle.Linear), {CFrame = ascendTarget})
-    ascendTw:Play()
-    ascendTw.Completed:Wait()
 
     if bv and bv.Parent then bv:Destroy() end
 
@@ -815,6 +801,10 @@ local function UndergroundReturnToBase(targetPos, speed)
 
     task.wait(0.04)
     return true
+end
+
+local function UndergroundReturnToBase(targetPos, speed)
+    return SurfaceGlideToBase(targetPos, speed)
 end
 
 local function TweenToEgg(targetPos, speed)
@@ -1022,27 +1012,26 @@ end
 
 local function FindModelNearPosition(pos)
     if not pos then return nil, nil end
-    for _, obj in ipairs(Workspace:GetChildren()) do
+    local closestObj, closestPart = nil, nil
+    local closestDist = 25
+
+    for _, obj in ipairs(Workspace:GetDescendants()) do
         if obj:IsA("Model") and not obj:FindFirstChildOfClass("Humanoid") then
-            local p = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
-            if p and (p.Position - pos).Magnitude < 12 then
-                return obj, p
-            end
-        end
-    end
-    for _, folder in ipairs(Workspace:GetChildren()) do
-        if folder:IsA("Folder") and folder.Name ~= "Plots" and folder.Name ~= "PlayerPlots" then
-            for _, obj in ipairs(folder:GetChildren()) do
-                if obj:IsA("Model") then
-                    local p = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
-                    if p and (p.Position - pos).Magnitude < 12 then
-                        return obj, p
+            local n = string.lower(obj.Name)
+            if string.find(n, "egg") and not string.find(n, "nest") and not string.find(n, "plot") then
+                local p = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+                if p then
+                    local d = (p.Position - pos).Magnitude
+                    if d < closestDist then
+                        closestDist = d
+                        closestObj = obj
+                        closestPart = p
                     end
                 end
             end
         end
     end
-    return nil, nil
+    return closestObj, closestPart
 end
 
 local function FindEggsInMap()
@@ -1174,24 +1163,21 @@ local function CollectEggAtCurrentPosition(egg, timeout, allowObjectGone)
         end)
     end
 
-    -- 2. Tembak remote resmi dengan UUID
-    if EggPickupRemote and egg.UUID and egg.UUID ~= "" then
-        pcall(function() SafeFire(EggPickupRemote, egg.UUID) end)
-    end
-
-    -- 3. Trigger ProximityPrompt resmi jika ada
+    -- 2. Ambil telur secara bersih (Gunakan ProximityPrompt jika ada, atau Remote jika prompt tidak ada)
+    local promptFound = false
     if egg.Object then
         for _, prompt in ipairs(egg.Object:GetDescendants()) do
-            if prompt:IsA("ProximityPrompt") then
+            if prompt:IsA("ProximityPrompt") and prompt.Enabled then
+                promptFound = true
                 TriggerPromptInstant(prompt)
+                break
             end
         end
     end
 
-    -- 4. Tahan E fisik via VirtualInputManager
-    pcall(function()
-        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-    end)
+    if not promptFound and EggPickupRemote and egg.UUID and egg.UUID ~= "" then
+        pcall(function() SafeFire(EggPickupRemote, egg.UUID) end)
+    end
 
     -- Tunggu konfirmasi server: UUID hilang dari ServerData.ActiveEggs, atau console event picked up, atau IsCarryingEgg
     local ae = RS:FindFirstChild("ServerData") and RS.ServerData:FindFirstChild("ActiveEggs")
@@ -1283,11 +1269,16 @@ local function PerformEggDelivery(egg)
     local deliveryCF = GetPlotDeliveryCFrame()
     local targetPos = typeof(deliveryCF) == "CFrame" and deliveryCF.Position or deliveryCF
 
-    State.Status = "Fast Return to Base..."
+    -- Check if player has an empty nest to deposit into
+    local nestObj = FindTargetNest()
+    local nestPart = nestObj and (nestObj:IsA("BasePart") and nestObj or (nestObj.PrimaryPart or nestObj:FindFirstChildWhichIsA("BasePart")))
+    local destPos = nestPart and nestPart.Position or targetPos
+
+    State.Status = "Gliding to Base (Surface)..."
     UpdateMonitorUI()
 
-    -- 1. Underground Tween ke base / plot (3-5 detik, cepat dan aman dari 30s timer batas telur pecah)
-    UndergroundReturnToBase(targetPos, State.ReturnSpeed or 220)
+    -- 1. Low-Altitude Surface Glide to base / plot (Never dives underground!)
+    SurfaceGlideToBase(destPos, State.ReturnSpeed or 170)
     task.wait(0.04)
 
     State.Status = "Securing Delivery..."
@@ -1301,12 +1292,21 @@ local function PerformEggDelivery(egg)
         return false
     end
 
-    -- 2. Snap firmly on plot baseplate
-    root.CFrame = CFrame.new(targetPos + Vector3.new(0, 1.5, 0))
+    -- 2. Snap firmly on nest or plot baseplate
+    root.CFrame = CFrame.new(destPos + Vector3.new(0, 1.5, 0))
     root.AssemblyLinearVelocity = Vector3.zero
 
-    -- 3. Touch plot delivery parts (Touch, Hitbox, Baseplate, Spawn)
-    if myPlot and type(firetouchinterest) == "function" then
+    -- 3. Touch nest or plot delivery parts
+    if nestObj and type(firetouchinterest) == "function" then
+        for _, part in ipairs(nestObj:GetDescendants()) do
+            if part:IsA("BasePart") then
+                pcall(function()
+                    firetouchinterest(root, part, 0)
+                    firetouchinterest(root, part, 1)
+                end)
+            end
+        end
+    elseif myPlot and type(firetouchinterest) == "function" then
         for _, part in ipairs(myPlot:GetDescendants()) do
             if part:IsA("BasePart") and (part.Name == "Touch" or part.Name == "Hitbox" or part.Name == "Baseplate" or part.Name == "Floor" or part.CanTouch) then
                 pcall(function()
@@ -1317,7 +1317,19 @@ local function PerformEggDelivery(egg)
         end
     end
 
-    -- 4. Call BasketDrop to store the carried egg into satchel / basket
+    -- 4. Trigger nest ProximityPrompt if present
+    if nestObj then
+        for _, prompt in ipairs(nestObj:GetDescendants()) do
+            if prompt:IsA("ProximityPrompt") and prompt.Enabled then
+                TriggerPromptInstant(prompt)
+            end
+        end
+    end
+
+    -- 5. Fire official remotes to claim, place in nest, or drop in basket
+    if nestObj and EggPlacedRemote then
+        pcall(function() SafeFire(EggPlacedRemote, { ["NestId"] = tostring(nestObj.Name) }) end)
+    end
     if BasketDropRemote then
         pcall(function() SafeFire(BasketDropRemote) end)
     end
@@ -1328,11 +1340,14 @@ local function PerformEggDelivery(egg)
         end
     end
 
-    -- 5. Wait up to 1.5s for deposit
+    -- 6. Wait up to 1.8s for deposit confirmation
     local depositStart = os.clock()
-    while (os.clock() - depositStart) < 1.5 and State.Running do
+    while (os.clock() - depositStart) < 1.8 and State.Running do
         if not IsCarryingEgg() then
             break
+        end
+        if nestObj and EggPlacedRemote then
+            pcall(function() SafeFire(EggPlacedRemote, { ["NestId"] = tostring(nestObj.Name) }) end)
         end
         if BasketDropRemote then
             pcall(function() SafeFire(BasketDropRemote) end)
