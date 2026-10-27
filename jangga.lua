@@ -390,21 +390,18 @@ local function IsCarryingEgg()
         return true
     end
 
-    -- 2. Check UI in PlayerGui for active Chase timer (e.g. "home on your screen with 29.7s left")
+    -- 2. Check UI in PlayerGui for DROP button, "Egg Will Break", or Chase timer
     local pgui = LP:FindFirstChild("PlayerGui")
     if pgui then
         for _, gui in ipairs(pgui:GetChildren()) do
-            if gui:IsA("ScreenGui") and gui.Enabled then
-                local gName = string.lower(gui.Name)
-                if string.find(gName, "chase") or string.find(gName, "egg") or string.find(gName, "carry") then
-                    for _, desc in ipairs(gui:GetDescendants()) do
-                        if desc:IsA("TextLabel") and desc.Visible then
-                            local t = string.lower(desc.Text)
-                            if string.find(t, "left") or string.find(t, "home") then
-                                State.IsCarryingEgg = true
-                                State.LastEggPickupTime = os.clock()
-                                return true
-                            end
+            if gui:IsA("ScreenGui") and gui.Enabled and gui.Name ~= "ErdevaRideAPet" then
+                for _, desc in ipairs(gui:GetDescendants()) do
+                    if (desc:IsA("TextLabel") or desc:IsA("TextButton")) and desc.Visible and desc.Text and desc.Text ~= "" then
+                        local t = string.lower(desc.Text)
+                        if t == "drop" or string.find(t, "drop") or string.find(t, "egg will break") or string.find(t, "break") or string.find(t, "left") or string.find(t, "home") then
+                            State.IsCarryingEgg = true
+                            State.LastEggPickupTime = os.clock()
+                            return true
                         end
                     end
                 end
@@ -421,6 +418,8 @@ local function IsCarryingEgg()
                 if (string.find(iname, "egg") or item:GetAttribute("Egg") or item:HasTag("Egg"))
                    and not string.find(iname, "nest") and not string.find(iname, "pet") and not string.find(iname, "mount") and not string.find(iname, "hat") then
                     if item:FindFirstChildWhichIsA("BasePart") then
+                        State.IsCarryingEgg = true
+                        State.LastEggPickupTime = os.clock()
                         return true
                     end
                 end
@@ -461,16 +460,27 @@ local function GetActualPlotObject()
     local myDisplay = string.lower(LP.DisplayName)
     local myUserId = tostring(LP.UserId)
 
-    local plots = Workspace:FindFirstChild("Plots")
+    local plots = Workspace:FindFirstChild("Plots") or Workspace:FindFirstChild("PlayerPlots")
     if plots then
         for _, pl in ipairs(plots:GetChildren()) do
+            -- A. Check attributes
+            local attOwner = pl:GetAttribute("Owner") or pl:GetAttribute("Player") or pl:GetAttribute("UserId")
+            if attOwner then
+                local s = string.lower(tostring(attOwner))
+                if s == myName or s == myDisplay or s == myUserId then
+                    State.PlotObject = pl
+                    return pl
+                end
+            end
+
+            -- B. Check Data and ValueBase children
             local data = pl:FindFirstChild("Data")
-            local owner = (data and data:FindFirstChild("Owner")) or pl:FindFirstChild("Owner")
+            local owner = (data and (data:FindFirstChild("Owner") or data:FindFirstChild("Player"))) or pl:FindFirstChild("Owner") or pl:FindFirstChild("Player")
             if owner then
                 local isMine = false
                 if owner:IsA("StringValue") then
                     local s = string.lower(owner.Value)
-                    isMine = (s == myName or s == myDisplay)
+                    isMine = (s == myName or s == myDisplay or s == myUserId)
                 elseif owner:IsA("ObjectValue") then
                     isMine = (owner.Value == LP)
                 else
@@ -480,6 +490,17 @@ local function GetActualPlotObject()
                 if isMine then
                     State.PlotObject = pl
                     return pl
+                end
+            end
+
+            -- C. Check if plot has Unlocked Nests
+            local nests = pl:FindFirstChild("Nests")
+            if nests and #nests:GetChildren() > 0 then
+                for _, n in ipairs(nests:GetChildren()) do
+                    if n:GetAttribute("Unlocked") == true then
+                        State.PlotObject = pl
+                        return pl
+                    end
                 end
             end
         end
@@ -1180,22 +1201,23 @@ local function CollectEggAtCurrentPosition(egg, timeout, allowObjectGone)
     end
 
     -- Tunggu konfirmasi server: UUID hilang dari ServerData.ActiveEggs, atau console event picked up, atau IsCarryingEgg
+    -- Tunggu konfirmasi server: UUID hilang dari ServerData.ActiveEggs, atau console event picked up, atau IsCarryingEgg
     local ae = RS:FindFirstChild("ServerData") and RS.ServerData:FindFirstChild("ActiveEggs")
     local startWait = os.clock()
-    local maxWait = timeout or 1.2
+    local maxWait = timeout or 2.5
     local pickedUp = false
 
     while (os.clock() - startWait) < maxWait and State.Running do
-        task.wait(0.05)
+        task.wait(0.04)
 
-        -- Check 1: ServerData.ActiveEggs config removed by server (100% authoritative proof!)
-        if ae and egg.UUID and not ae:FindFirstChild(egg.UUID) then
+        -- Check 1: Console hook / IsCarryingEgg (DROP button, break UI, or console picked up)
+        if State.LastPickupDetected or IsCarryingEgg() then
             pickedUp = true
             break
         end
 
-        -- Check 2: Console hook / IsCarryingEgg
-        if State.LastPickupDetected or IsCarryingEgg() then
+        -- Check 2: ServerData.ActiveEggs config removed by server
+        if ae and egg.UUID and not ae:FindFirstChild(egg.UUID) then
             pickedUp = true
             break
         end
@@ -1231,7 +1253,7 @@ local function PerformEggPickup(egg)
     TweenToEgg(eggPos, 150)
     task.wait(0.04)
 
-    return CollectEggAtCurrentPosition(egg, 1.5, true)
+    return CollectEggAtCurrentPosition(egg, 2.5, true)
 end
 
 local function PerformInstantPickup(egg)
@@ -1270,9 +1292,10 @@ local function PerformEggDelivery(egg)
     local targetPos = typeof(deliveryCF) == "CFrame" and deliveryCF.Position or deliveryCF
 
     -- Check if player has an empty nest to deposit into
-    local nestObj = FindTargetNest()
-    local nestPart = nestObj and (nestObj:IsA("BasePart") and nestObj or (nestObj.PrimaryPart or nestObj:FindFirstChildWhichIsA("BasePart")))
-    local destPos = nestPart and nestPart.Position or targetPos
+    local nestObj, nestCF = FindTargetNest()
+    local destPos = (nestCF and (typeof(nestCF) == "CFrame" and nestCF.Position or nestCF))
+        or (nestObj and (nestObj:IsA("BasePart") and nestObj.Position or (nestObj.PrimaryPart and nestObj.PrimaryPart.Position) or (nestObj:FindFirstChildWhichIsA("BasePart") and nestObj:FindFirstChildWhichIsA("BasePart").Position)))
+        or targetPos
 
     State.Status = "Gliding to Base (Surface)..."
     UpdateMonitorUI()
@@ -1355,8 +1378,8 @@ local function PerformEggDelivery(egg)
         task.wait(0.15)
     end
 
-    State.IsCarryingEgg = false
-    return true
+    State.IsCarryingEgg = IsCarryingEgg()
+    return not State.IsCarryingEgg
 end
 
 local function PerformFullDelivery(egg)
@@ -2457,27 +2480,19 @@ MakeToggle(pHarvest, "Auto Farm", "Collect selected eggs & deliver to base", fal
                     UpdateMonitorUI()
                     task.wait(0.5)
                 else
-                    if IsCarryingEgg() and deliveryAttempts < 2 then
-                        deliveryAttempts = deliveryAttempts + 1
-                        State.Status = string.format("Delivering to Bag (%d)...", deliveryAttempts)
+                    if IsCarryingEgg() then
+                        State.Status = "Delivering to Nest/Plot..."
                         UpdateMonitorUI()
                         PerformFullDelivery()
                         task.wait(0.2)
 
                         if not IsCarryingEgg() then
-                            deliveryAttempts = 0
                             State.EggCount = State.EggCount + 1
                             State.Status = "Egg Delivered!"
                             UpdateMonitorUI()
                             task.wait(0.3)
                         end
                     else
-                        if deliveryAttempts >= 2 then
-                            State.IsCarryingEgg = false
-                            deliveryAttempts = 0
-                        end
-
-                        deliveryAttempts = 0
                         local eggs = FindEggsInMap()
                         if #eggs > 0 then
                             local egg = eggs[1]
@@ -2490,23 +2505,30 @@ MakeToggle(pHarvest, "Auto Farm", "Collect selected eggs & deliver to base", fal
                                 and PerformVolcanicPickup(egg, false)
                                 or PerformEggPickup(egg)
 
+                            task.wait(0.1)
                             if success or IsCarryingEgg() then
                                 State.Status = "Fast Return to Base..."
                                 UpdateMonitorUI()
 
                                 PerformFullDelivery(egg)
 
-                                State.EggCount = State.EggCount + 1
-                                State.Status = "Egg Delivered!"
-                                UpdateMonitorUI()
+                                if not IsCarryingEgg() then
+                                    State.EggCount = State.EggCount + 1
+                                    State.Status = "Egg Delivered!"
+                                    UpdateMonitorUI()
+                                end
 
                                 IgnoredEggs[egg.Object] = os.clock() + 30
                                 if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 30 end
+                                if egg.UUID then IgnoredEggs[egg.UUID] = os.clock() + 30 end
+                                if egg.Config then IgnoredEggs[egg.Config] = os.clock() + 30 end
                             else
                                 State.Status = "Missed, Next..."
                                 UpdateMonitorUI()
-                                IgnoredEggs[egg.Object] = os.clock() + 4
-                                if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 4 end
+                                IgnoredEggs[egg.Object] = os.clock() + 5
+                                if egg.Part then IgnoredEggs[egg.Part] = os.clock() + 5 end
+                                if egg.UUID then IgnoredEggs[egg.UUID] = os.clock() + 5 end
+                                if egg.Config then IgnoredEggs[egg.Config] = os.clock() + 5 end
                             end
 
                             State.Status = "Searching Next..."
