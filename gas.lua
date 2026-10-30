@@ -472,7 +472,7 @@ task.spawn(function()
         SplashStatus.Text = s.text
         SplashPercent.Text = s.num
         tw(SplashBarFill, { Size = UDim2.new(s.pct, 0, 1, 0) }, 0.4)
-        task.wait(0.45)
+        task.wait(0.60)
     end
     task.wait(0.2)
     tw(Splash, { BackgroundTransparency = 1 }, 0.25)
@@ -491,7 +491,7 @@ task.spawn(function()
         FloatText.Text = ""
         HeaderIcon.Image = LogoAssetId
     end
-    Notify("ERDEVA BYPASS", "Bypass Active! Welcome, " .. player.DisplayName, 3)
+    Notify("ERDEVA BYPASS", "Welcome, " .. player.DisplayName, 3)
 end)
 
 local isDragging, dragStart, startPos = false, nil, nil
