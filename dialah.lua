@@ -1,6 +1,3 @@
-print("==================================================")
-print("[RYC HUB] MEMULAI INISIALISASI VIOLENCE DISTRICT...")
-print("==================================================")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -137,13 +134,51 @@ local function GetKiller()
                 return pChar
             end
             for _, item in ipairs(pChar:GetChildren()) do
-                if item:IsA("Tool") and (item.Name:lower():find("knife") or item.Name:lower():find("axe") or item.Name:lower():find("machete") or item.Name:lower():find("chainsaw") or item.Name:lower():find("claw")) then
+                if item:IsA("Tool") and (item.Name:lower():find("knife") or item.Name:lower():find("axe") or item.Name:lower():find("machete") or item.Name:lower():find("chainsaw") or item.Name:lower():find("claw") or item.Name:lower():find("weapon")) then
                     return pChar
                 end
             end
         end
     end
+    local killerNames = {"abysswalker", "jason", "butcher", "stalker", "masked", "hidden", "killer"}
+    for _, obj in ipairs(Workspace:GetChildren()) do
+        if obj:IsA("Model") and obj ~= player.Character and not Players:GetPlayerFromCharacter(obj) then
+            local objName = obj.Name:lower()
+            for _, kName in ipairs(killerNames) do
+                if objName:find(kName) and (obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Humanoid")) then
+                    return obj
+                end
+            end
+        end
+    end
     return nil
+end
+
+local function FindGenerators()
+    local gens = {}
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        local n = obj.Name:lower()
+        if (n:find("gen") or n:find("motor") or n:find("engine") or n:find("machine") or n:find("repair")) and (obj:IsA("Model") or obj:IsA("BasePart")) then
+            if not obj:FindFirstAncestorOfClass("Players") and not Players:GetPlayerFromCharacter(obj) then
+                local pos = nil
+                if obj:IsA("BasePart") then
+                    pos = obj.Position
+                elseif obj:IsA("Model") then
+                    if obj.PrimaryPart then
+                        pos = obj.PrimaryPart.Position
+                    elseif obj:FindFirstChildWhichIsA("BasePart") then
+                        pos = obj:FindFirstChildWhichIsA("BasePart").Position
+                    elseif obj.GetPivot then
+                        pos = obj:GetPivot().Position
+                    end
+                end
+                if pos and pos.Y > -500 then
+                    table.insert(gens, { instance = obj, pos = pos })
+                end
+            end
+        end
+    end
+    return gens
 end
 local function GetSafeGuiParent()
     local pGui = player:WaitForChild("PlayerGui", 5) or player:FindFirstChildOfClass("PlayerGui")
@@ -245,7 +280,7 @@ local function Shutdown()
     pcall(function()
         Gui:Destroy()
     end)
-    Notify("RYC HUB", "Script Closed!", 2)
+    Notify("RYC HUB", "Script Closed Safely", 2)
 end
 local CloseBtn = Instance.new("TextButton", Top)
 CloseBtn.Size = UDim2.fromOffset(22, 22)
@@ -354,6 +389,111 @@ FloatToggle.InputBegan:Connect(function(input)
         end)
     end
 end)
+Main.Visible = false
+FloatToggle.Visible = false
+
+local Splash = Instance.new("Frame", Gui)
+Splash.Name = "ErdevaBypassSplash"
+Splash.Size = UDim2.fromOffset(330, 160)
+Splash.Position = UDim2.new(0.5, 0, 0.5, 0)
+Splash.AnchorPoint = Vector2.new(0.5, 0.5)
+Splash.BackgroundColor3 = C.Bg
+Splash.BorderSizePixel = 0
+Splash.ZIndex = 1000
+Instance.new("UICorner", Splash).CornerRadius = UDim.new(0, 12)
+
+local SplashStroke = Instance.new("UIStroke", Splash)
+SplashStroke.Color = C.Purple
+SplashStroke.Thickness = 1.8
+
+local SplashTitle = Instance.new("TextLabel", Splash)
+SplashTitle.Size = UDim2.new(1, 0, 0, 26)
+SplashTitle.Position = UDim2.fromOffset(0, 18)
+SplashTitle.BackgroundTransparency = 1
+SplashTitle.Text = "ERDEVA BYPASS"
+SplashTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+SplashTitle.Font = Enum.Font.GothamBold
+SplashTitle.TextSize = 17
+SplashTitle.ZIndex = 1001
+
+local SplashSub = Instance.new("TextLabel", Splash)
+SplashSub.Size = UDim2.new(1, 0, 0, 16)
+SplashSub.Position = UDim2.fromOffset(0, 44)
+SplashSub.BackgroundTransparency = 1
+SplashSub.Text = "Violence District Security Bypass"
+SplashSub.TextColor3 = C.PurpleGlow
+SplashSub.Font = Enum.Font.GothamMedium
+SplashSub.TextSize = 10
+SplashSub.ZIndex = 1001
+
+local SplashBarBg = Instance.new("Frame", Splash)
+SplashBarBg.Size = UDim2.new(1, -60, 0, 6)
+SplashBarBg.Position = UDim2.new(0, 30, 0, 78)
+SplashBarBg.BackgroundColor3 = Color3.fromRGB(30, 15, 48)
+SplashBarBg.BorderSizePixel = 0
+SplashBarBg.ZIndex = 1001
+Instance.new("UICorner", SplashBarBg).CornerRadius = UDim.new(1, 0)
+
+local SplashBarFill = Instance.new("Frame", SplashBarBg)
+SplashBarFill.Size = UDim2.new(0, 0, 1, 0)
+SplashBarFill.BackgroundColor3 = C.PurpleGlow
+SplashBarFill.BorderSizePixel = 0
+SplashBarFill.ZIndex = 1002
+Instance.new("UICorner", SplashBarFill).CornerRadius = UDim.new(1, 0)
+
+local SplashStatus = Instance.new("TextLabel", Splash)
+SplashStatus.Size = UDim2.new(1, 0, 0, 18)
+SplashStatus.Position = UDim2.fromOffset(0, 96)
+SplashStatus.BackgroundTransparency = 1
+SplashStatus.Text = "[1/4] Checking Environment..."
+SplashStatus.TextColor3 = C.Sub
+SplashStatus.Font = Enum.Font.Gotham
+SplashStatus.TextSize = 10
+SplashStatus.ZIndex = 1001
+
+local SplashPercent = Instance.new("TextLabel", Splash)
+SplashPercent.Size = UDim2.new(1, 0, 0, 16)
+SplashPercent.Position = UDim2.fromOffset(0, 120)
+SplashPercent.BackgroundTransparency = 1
+SplashPercent.Text = "0%"
+SplashPercent.TextColor3 = Color3.fromRGB(130, 240, 160)
+SplashPercent.Font = Enum.Font.GothamBold
+SplashPercent.TextSize = 10
+SplashPercent.ZIndex = 1001
+
+task.spawn(function()
+    local steps = {
+        { pct = 0.28, text = "[1/4] Checking Environment...", num = "28%" },
+        { pct = 0.58, text = "[2/4] Bypassing Anticheat Restrictions...", num = "58%" },
+        { pct = 0.88, text = "[3/4] Hooking Remotes and Loading Assets...", num = "88%" },
+        { pct = 1.00, text = "[4/4] Bypass Success! Initializing...", num = "100%" }
+    }
+    for _, s in ipairs(steps) do
+        SplashStatus.Text = s.text
+        SplashPercent.Text = s.num
+        tw(SplashBarFill, { Size = UDim2.new(s.pct, 0, 1, 0) }, 0.4)
+        task.wait(0.45)
+    end
+    task.wait(0.15)
+    tw(Splash, { BackgroundTransparency = 1 }, 0.25)
+    for _, ch in ipairs(Splash:GetDescendants()) do
+        if ch:IsA("TextLabel") then tw(ch, { TextTransparency = 1 }, 0.2) end
+        if ch:IsA("Frame") then tw(ch, { BackgroundTransparency = 1 }, 0.2) end
+        if ch:IsA("UIStroke") then tw(ch, { Transparency = 1 }, 0.2) end
+    end
+    task.wait(0.25)
+    Splash:Destroy()
+    Main.Visible = true
+    FloatToggle.Visible = true
+    if LogoAssetId and FloatImg then
+        FloatImg.Image = LogoAssetId
+        FloatImg.Visible = true
+        FloatText.Text = ""
+        HeaderIcon.Image = LogoAssetId
+    end
+    Notify("ERDEVA BYPASS", "Bypass Active! Welcome, " .. player.DisplayName, 3)
+end)
+
 local isDragging, dragStart, startPos = false, nil, nil
 Top.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -706,7 +846,7 @@ local LiveStatsLbl = Instance.new("TextLabel", StatsCard)
 LiveStatsLbl.Size = UDim2.new(1, -20, 1, 0)
 LiveStatsLbl.Position = UDim2.fromOffset(10, 0)
 LiveStatsLbl.BackgroundTransparency = 1
-LiveStatsLbl.Text = "FPS: Scanning...  |  Ping: ...ms  |  Job: Local"
+LiveStatsLbl.Text = "FPS: 60  |  Ping: ...ms  |  Job: Local"
 LiveStatsLbl.TextColor3 = Color3.fromRGB(130, 240, 160)
 LiveStatsLbl.Font = Enum.Font.GothamMedium
 LiveStatsLbl.TextSize = 9.5
@@ -740,12 +880,18 @@ end)
 AddActionCard(SurvivorPage, "Teleport to the Killer", "Teleport to the Killer", function()
     local char = player.Character
     local killer = GetKiller()
-    if char and char:FindFirstChild("HumanoidRootPart") and killer and killer:FindFirstChild("HumanoidRootPart") then
-        char.HumanoidRootPart.CFrame = killer.HumanoidRootPart.CFrame * CFrame.new(0, 0, 4)
-        Notify("RYC HUB", "Teleported to Killer!", 2)
-    else
-        Notify("RYC HUB", "Killer not found in match!", 2)
+    if char and char:FindFirstChild("HumanoidRootPart") and killer then
+        local kHrp = killer:FindFirstChild("HumanoidRootPart") or killer:FindFirstChildWhichIsA("BasePart")
+        if kHrp then
+            local myHrp = char.HumanoidRootPart
+            myHrp.AssemblyLinearVelocity = Vector3.zero
+            myHrp.AssemblyAngularVelocity = Vector3.zero
+            char:PivotTo(kHrp.CFrame * CFrame.new(0, 0, 4))
+            Notify("RYC HUB", "Teleported to Killer!", 2)
+            return
+        end
     end
+    Notify("RYC HUB", "Killer not found in match!", 2)
 end)
 AddToggle(SurvivorPage, "Auto Shoot", "Auto Shoot (Need Hability)", "AutoShoot")
 AddToggle(SurvivorPage, "Auto Parry", "Auto Parry (Need Hability)", "AutoParry")
@@ -781,19 +927,22 @@ AddToggle(SurvivorPage, "Auto Lever", "Auto Lever", "AutoLever")
 AddActionCard(SurvivorPage, "Teleport to the exit", "Teleport to the exit", function()
     local char = player.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    local hrp = char.HumanoidRootPart
     local foundGate = nil
     for _, obj in ipairs(Workspace:GetDescendants()) do
         local n = obj.Name:lower()
-        if (n:find("exit") or n:find("gate") or n:find("lever")) and (obj:IsA("BasePart") or obj:IsA("Model")) then
-            local pos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
-            if pos then
+        if (n:find("exit") or n:find("gate") or n:find("lever") or n:find("door")) and (obj:IsA("BasePart") or obj:IsA("Model")) then
+            local pos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position) or (obj:FindFirstChildWhichIsA("BasePart") and obj:FindFirstChildWhichIsA("BasePart").Position) or (obj.GetPivot and obj:GetPivot().Position)
+            if pos and pos.Y > -500 then
                 foundGate = pos
                 break
             end
         end
     end
     if foundGate then
-        char.HumanoidRootPart.CFrame = CFrame.new(foundGate + Vector3.new(0, 3, 2))
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+        char:PivotTo(CFrame.new(foundGate + Vector3.new(0, 3.5, 2)))
         Notify("RYC HUB", "Teleported to Exit Gate!", 2.5)
     else
         Notify("RYC HUB", "Exit Gate not found or not active!", 2.5)
@@ -827,23 +976,21 @@ AddToggle(GeneratorsPage, "Auto Perfect Skill Check", "Never Miss a Skill Check"
 AddActionCard(GeneratorsPage, "Teleport to Nearest Generator", "Cycle to next incomplete gen", function()
     local char = player.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-    local myPos = char.HumanoidRootPart.Position
-    local nearestGen, nearestDist = nil, math.huge
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        local n = obj.Name:lower()
-        if (n:find("generator") or n:find("motor") or n:find("engine")) and (obj:IsA("Model") or obj:IsA("BasePart")) then
-            local pos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
-            if pos then
-                local dist = (pos - myPos).Magnitude
-                if dist > 3 and dist < nearestDist then
-                    nearestGen = pos
-                    nearestDist = dist
-                end
-            end
+    local hrp = char.HumanoidRootPart
+    local myPos = hrp.Position
+    local gens = FindGenerators()
+    local nearestPos, nearestDist = nil, math.huge
+    for _, g in ipairs(gens) do
+        local dist = (g.pos - myPos).Magnitude
+        if dist > 4 and dist < nearestDist then
+            nearestPos = g.pos
+            nearestDist = dist
         end
     end
-    if nearestGen then
-        char.HumanoidRootPart.CFrame = CFrame.new(nearestGen + Vector3.new(0, 3, 2))
+    if nearestPos then
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+        char:PivotTo(CFrame.new(nearestPos + Vector3.new(0, 3.5, 2)))
         Notify("RYC HUB", "Teleported to Nearest Generator!", 2)
     else
         Notify("RYC HUB", "No generator found in map!", 2)
@@ -966,13 +1113,27 @@ task.spawn(function()
             local char = player.Character
             if not char or not char:FindFirstChild("HumanoidRootPart") then return end
             local myPos = char.HumanoidRootPart.Position
+            local gens = FindGenerators()
+            local targetGen = nil
+            local minD = 25
+            for _, g in ipairs(gens) do
+                local d = (g.pos - myPos).Magnitude
+                if d < minD then
+                    minD = d
+                    targetGen = g.instance
+                end
+            end
             if Remotes.GenRepair then
-                Remotes.GenRepair:FireServer()
+                if targetGen then
+                    Remotes.GenRepair:FireServer(targetGen)
+                    Remotes.GenRepair:FireServer(targetGen, true)
+                else
+                    Remotes.GenRepair:FireServer()
+                end
             end
             for _, prompt in ipairs(Workspace:GetDescendants()) do
                 if prompt:IsA("ProximityPrompt") and prompt.Enabled then
-                    local pName = prompt.ActionText:lower() .. " " .. prompt.ObjectText:lower()
-                    if pName:find("repair") or pName:find("gen") or pName:find("motor") or pName:find("fix") then
+                    if fireproximityprompt then
                         fireproximityprompt(prompt)
                     end
                 end
@@ -1113,4 +1274,4 @@ task.spawn(function()
     end
 end)
 SetTab("Survivor")
-Notify("RYC HUB", "Script Loaded!", 3.5)
+Notify("RYC HUB", "Violence District v1.0 Ready!", 3.5)
