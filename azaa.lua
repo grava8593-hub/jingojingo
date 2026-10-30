@@ -338,9 +338,9 @@ FloatToggle.Size = UDim2.fromOffset(42, 42)
 FloatToggle.Position = UDim2.new(0, 16, 0.35, 0)
 FloatToggle.BackgroundColor3 = Color3.fromRGB(24, 12, 42)
 FloatToggle.BorderSizePixel = 0
-FloatToggle.Text = "⚡"
+FloatToggle.Text = "RYC"
 FloatToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
-FloatToggle.TextSize = 18
+FloatToggle.TextSize = 13
 FloatToggle.Font = Enum.Font.GothamBold
 FloatToggle.AutoButtonColor = false
 FloatToggle.ZIndex = 99999
@@ -810,7 +810,7 @@ local UsernameLbl = Instance.new("TextLabel", ProfileCard)
 UsernameLbl.Size = UDim2.new(1, -70, 0, 14)
 UsernameLbl.Position = UDim2.fromOffset(64, 24)
 UsernameLbl.BackgroundTransparency = 1
-UsernameLbl.Text = "@" .. player.Name .. "  •  ID: " .. tostring(player.UserId)
+UsernameLbl.Text = "@" .. player.Name .. "  |  ID: " .. tostring(player.UserId)
 UsernameLbl.TextColor3 = C.Sub
 UsernameLbl.Font = Enum.Font.GothamMedium
 UsernameLbl.TextSize = 9
@@ -1034,9 +1034,10 @@ task.spawn(function()
         pcall(function()
             if not connectedGen and Remotes.GenSkillEvent then
                 Remotes.GenSkillEvent.OnClientEvent:Connect(function(...)
+                    local args = {...}
                     if Flags.AutoSkillcheck and Remotes.GenSkillResult then
                         pcall(function()
-                            Remotes.GenSkillResult:FireServer(true, ...)
+                            Remotes.GenSkillResult:FireServer(true, unpack(args))
                         end)
                     end
                 end)
@@ -1044,9 +1045,10 @@ task.spawn(function()
             end
             if not connectedHeal and Remotes.HealSkillEvent then
                 Remotes.HealSkillEvent.OnClientEvent:Connect(function(...)
+                    local args = {...}
                     if Flags.AutoSkillcheck and Remotes.HealSkillResult then
                         pcall(function()
-                            Remotes.HealSkillResult:FireServer(true, ...)
+                            Remotes.HealSkillResult:FireServer(true, unpack(args))
                         end)
                     end
                 end)
