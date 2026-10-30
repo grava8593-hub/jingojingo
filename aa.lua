@@ -4,6 +4,10 @@
 -- Compatible with Android Delta, Hydrogen, Codex, & PC Executors
 -- ==============================================================================
 
+print("==================================================")
+print("[RYC HUB] MEMULAI INISIALISASI VIOLENCE DISTRICT...")
+print("==================================================")
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -476,25 +480,12 @@ TabPadding.PaddingRight = UDim.new(0, 6)
 TabPadding.PaddingTop = UDim.new(0, 8)
 TabPadding.PaddingBottom = UDim.new(0, 8)
 
-local Content = Instance.new("ScrollingFrame", Main)
+local Content = Instance.new("Frame", Main)
+Content.Name = "TabContentContainer"
 Content.Size = UDim2.new(1, -134, 1, -44)
 Content.Position = UDim2.fromOffset(130, 40)
 Content.BackgroundTransparency = 1
 Content.BorderSizePixel = 0
-Content.ScrollBarThickness = 3
-Content.ScrollBarImageColor3 = C.Purple
-Content.CanvasSize = UDim2.new(0, 0, 0, 0)
-Content.AutomaticCanvasSize = Enum.AutomaticSize.Y
-
-local ContentPadding = Instance.new("UIPadding", Content)
-ContentPadding.PaddingLeft = UDim.new(0, 8)
-ContentPadding.PaddingRight = UDim.new(0, 8)
-ContentPadding.PaddingTop = UDim.new(0, 4)
-ContentPadding.PaddingBottom = UDim.new(0, 12)
-
-local CL = Instance.new("UIListLayout", Content)
-CL.SortOrder = Enum.SortOrder.LayoutOrder
-CL.Padding = UDim.new(0, 6)
 
 -- ==================== TAB NAVIGATION SYSTEM ====================
 local Pages, TabBtns = {}, {}
@@ -593,13 +584,27 @@ local MakeTab = function(name, order)
         indicator = indicator
     }
 
-    local page = Instance.new("Frame", Content)
-    page.Size = UDim2.new(1, 0, 0, 0)
-    page.AutomaticSize = Enum.AutomaticSize.Y
+    local page = Instance.new("ScrollingFrame", Content)
+    page.Name = name .. "_Page"
+    page.Size = UDim2.new(1, 0, 1, 0)
     page.BackgroundTransparency = 1
+    page.BorderSizePixel = 0
+    page.ScrollBarThickness = 3
+    page.ScrollBarImageColor3 = C.Purple
+    page.CanvasSize = UDim2.new(0, 0, 0, 0)
+    page.AutomaticCanvasSize = Enum.AutomaticSize.Y
     page.Visible = false
+
     local pl = Instance.new("UIListLayout", page)
-    pl.Padding = UDim.new(0, 5)
+    pl.SortOrder = Enum.SortOrder.LayoutOrder
+    pl.Padding = UDim.new(0, 6)
+
+    local pPad = Instance.new("UIPadding", page)
+    pPad.PaddingLeft = UDim.new(0, 4)
+    pPad.PaddingRight = UDim.new(0, 8)
+    pPad.PaddingTop = UDim.new(0, 4)
+    pPad.PaddingBottom = UDim.new(0, 16)
+
     Pages[name] = page
 
     btn.MouseButton1Click:Connect(function()
@@ -766,6 +771,9 @@ local GensPage = MakeTab("Generators", 4)
 local ESPPage = MakeTab("ESP", 5)
 local TrollPage = MakeTab("Troll Players", 6)
 local OthersPage = MakeTab("Others Scripts", 7)
+
+-- Set default active tab immediately so features are visible
+SetTab("Survivor")
 
 -- ========== TAB 1: INFO & PROFILES ==========
 local ProfileCard = Instance.new("Frame", InfoPage)
