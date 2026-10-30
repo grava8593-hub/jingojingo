@@ -85,7 +85,9 @@ local RemotePaths = {
     FlingReport = "Remotes.Killers.FlingReport",
     PalletStun = "Remotes.Pallet.Jason.Stun",
     TeleportChar = "Remotes.Mechanics.Teleportcharacter",
-    GlobalTeleport = "Remotes.Teleport"
+    GlobalTeleport = "Remotes.Teleport",
+    DisableCollision = "Remotes.Collision.DisableCollision",
+    EnableCollision = "Remotes.Collision.EnableCollision"
 }
 local Remotes = setmetatable({}, {
     __index = function(t, k)
@@ -123,19 +125,40 @@ local function SetFlag(key, val)
         ToggleUpdaters[key](val)
     end
 end
+local function IsSurvivor(pChar)
+    if not pChar then return false end
+    if pChar:GetAttribute("HookCount") ~= nil or pChar:GetAttribute("HookedProgress") ~= nil or pChar:GetAttribute("Knocked") ~= nil then
+        return true
+    end
+    for _, item in ipairs(pChar:GetChildren()) do
+        if item:IsA("Tool") then
+            local tn = item.Name:lower()
+            if tn:find("twist of fate") or tn:find("bandage") or tn:find("adrenaline") or tn:find("medkit") or tn:find("parrying") or tn:find("shot") or tn:find("gun") or tn:find("rifle") then
+                return true
+            end
+        end
+    end
+    return false
+end
+
 local function GetKiller()
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= player and p.Character then
             local pChar = p.Character
-            if pChar:GetAttribute("IsKiller") or p:GetAttribute("IsKiller") or (p:GetAttribute("SelectedKiller") and p:GetAttribute("SelectedKiller") ~= "") then
+            if pChar:GetAttribute("IsKiller") == true or p:GetAttribute("IsKiller") == true then
                 return pChar
             end
             if p.Team and p.Team.Name:lower():find("killer") then
                 return pChar
             end
-            for _, item in ipairs(pChar:GetChildren()) do
-                if item:IsA("Tool") and (item.Name:lower():find("knife") or item.Name:lower():find("axe") or item.Name:lower():find("machete") or item.Name:lower():find("chainsaw") or item.Name:lower():find("claw") or item.Name:lower():find("weapon")) then
-                    return pChar
+            if not IsSurvivor(pChar) then
+                for _, item in ipairs(pChar:GetChildren()) do
+                    if item:IsA("Tool") then
+                        local tn = item.Name:lower()
+                        if tn:find("knife") or tn:find("axe") or tn:find("machete") or tn:find("chainsaw") or tn:find("claw") or tn:find("spear") or tn:find("cleaver") or tn:find("trap") then
+                            return pChar
+                        end
+                    end
                 end
             end
         end
@@ -151,34 +174,154 @@ local function GetKiller()
             end
         end
     end
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            local pChar = p.Character
+            if not IsSurvivor(pChar) then
+                return pChar
+            end
+        end
+    end
     return nil
 end
 
 local function FindGenerators()
     local gens = {}
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        local n = obj.Name:lower()
-        if (n:find("gen") or n:find("motor") or n:find("engine") or n:find("machine") or n:find("repair")) and (obj:IsA("Model") or obj:IsA("BasePart")) then
-            if not obj:FindFirstAncestorOfClass("Players") and not Players:GetPlayerFromCharacter(obj) then
-                local pos = nil
-                if obj:IsA("BasePart") then
-                    pos = obj.Position
-                elseif obj:IsA("Model") then
-                    if obj.PrimaryPart then
-                        pos = obj.PrimaryPart.Position
-                    elseif obj:FindFirstChildWhichIsA("BasePart") then
-                        pos = obj:FindFirstChildWhichIsA("BasePart").Position
-                    elseif obj.GetPivot then
-                        pos = obj:GetPivot().Position
-                    end
-                end
-                if pos and pos.Y > -500 then
-                    table.insert(gens, { instance = obj, pos = pos })
-                end
+    local seen = {}
+
+    local function CheckModel(m)
+        if not m or not m:IsA("Model") or seen[m] then return end
+        if m:FindFirstAncestorOfClass("Players") or Players:GetPlayerFromCharacter(m) then return end
+        local n = m.Name:lower()
+        local isGen = false
+
+        if n == "generator" or n == "gen" or n == "motor" or n == "engine" then
+            isGen = true
+        elseif n:match("^generator[s%s%d_%-]") or n:match("^gen[s%s%d_%-]") or n:match("^motor[s%s%d_%-]") then
+            isGen = true
+        elseif n:find("generator") and not n:find("foliage") and not n:find("grass") and not n:find("tree") and not n:find("leaf") and not n:find("bush") then
+            isGen = true
+        end
+
+        if not isGen then
+            if m:GetAttribute("Progress") ~= nil or m:GetAttribute("Repaired") ~= nil or m:FindFirstChild("RepairHitbox") or m:FindFirstChild("RepairPrompt") or m:FindFirstChild("RepairVFX") then
+                isGen = true
+            end
+        end
+
+        if isGen then
+            seen[m] = true
+            local pos = nil
+            if m.PrimaryPart then
+                pos = m.PrimaryPart.Position
+            elseif m:FindFirstChildWhichIsA("BasePart") then
+                pos = m:FindFirstChildWhichIsA("BasePart").Position
+            elseif m.GetPivot then
+                pos = m:GetPivot().Position
+            end
+            if pos and pos.Y > -500 then
+                table.insert(gens, { instance = m, pos = pos })
             end
         end
     end
+
+    local inter = Workspace:FindFirstChild("Interractables") or Workspace:FindFirstChild("Interactables")
+    if inter then
+        for _, ch in ipairs(inter:GetChildren()) do CheckModel(ch) end
+        for _, ch in ipairs(inter:GetDescendants()) do if ch:IsA("Model") then CheckModel(ch) end end
+    end
+
+    local mapFolder = Workspace:FindFirstChild("Map")
+    if mapFolder then
+        for _, ch in ipairs(mapFolder:GetDescendants()) do if ch:IsA("Model") then CheckModel(ch) end end
+    end
+
+    for _, ch in ipairs(Workspace:GetChildren()) do
+        if ch:IsA("Model") and ch.Name ~= "Lobby" and ch.Name ~= "Terrain" and ch.Name ~= "Clones" and ch.Name ~= "KillerPreviewModels" then
+            CheckModel(ch)
+        end
+    end
+
+    if #gens == 0 then
+        for _, ch in ipairs(Workspace:GetDescendants()) do
+            if ch:IsA("Model") and not seen[ch] then
+                CheckModel(ch)
+            end
+        end
+    end
+
     return gens
+end
+
+local function FindExitGates()
+    local gates = {}
+    local seen = {}
+
+    local function CheckGate(obj)
+        if not obj or seen[obj] then return end
+        if obj:FindFirstAncestorOfClass("Players") or Players:GetPlayerFromCharacter(obj) then return end
+        local n = obj.Name:lower()
+        local isGate = false
+
+        if n == "exitgate" or n == "exit gate" or n == "escapedoor" or n == "escape door" or n == "exit_gate" or n == "escape_door" then
+            isGate = true
+        elseif n:match("^exitgate[s%s%d_%-]") or n:match("^escapedoor[s%s%d_%-]") or n:match("^exit_gate[s%s%d_%-]") then
+            isGate = true
+        elseif (n:find("exit") or n:find("escape")) and (n:find("gate") or n:find("lever") or n:find("door")) then
+            if not n:find("sign") and not n:find("room") and not n:find("house") and not n:find("building") and not n:find("toilet") then
+                isGate = true
+            end
+        elseif n == "gate" and (obj:FindFirstChild("Lever") or obj:FindFirstChild("lever") or obj:FindFirstChild("Switch") or obj:GetAttribute("Open") ~= nil) then
+            isGate = true
+        end
+
+        if isGate and (obj:IsA("Model") or obj:IsA("BasePart")) then
+            local parentModel = obj:FindFirstAncestorOfClass("Model")
+            if parentModel and seen[parentModel] then return end
+
+            seen[obj] = true
+            local pos = nil
+            if obj:IsA("BasePart") then
+                pos = obj.Position
+            elseif obj:IsA("Model") then
+                if obj.PrimaryPart then
+                    pos = obj.PrimaryPart.Position
+                elseif obj:FindFirstChildWhichIsA("BasePart") then
+                    pos = obj:FindFirstChildWhichIsA("BasePart").Position
+                elseif obj.GetPivot then
+                    pos = obj:GetPivot().Position
+                end
+            end
+            if pos and pos.Y > -500 then
+                table.insert(gates, { instance = obj, pos = pos })
+            end
+        end
+    end
+
+    local inter = Workspace:FindFirstChild("Interractables") or Workspace:FindFirstChild("Interactables")
+    if inter then
+        for _, ch in ipairs(inter:GetChildren()) do CheckGate(ch) end
+        for _, ch in ipairs(inter:GetDescendants()) do CheckGate(ch) end
+    end
+
+    local mapFolder = Workspace:FindFirstChild("Map")
+    if mapFolder then
+        for _, ch in ipairs(mapFolder:GetDescendants()) do CheckGate(ch) end
+    end
+
+    for _, ch in ipairs(Workspace:GetChildren()) do
+        if ch ~= inter and ch ~= mapFolder and ch.Name ~= "Lobby" and ch.Name ~= "Terrain" and ch.Name ~= "Clones" and ch.Name ~= "KillerPreviewModels" then
+            CheckGate(ch)
+        end
+    end
+
+    if #gates == 0 then
+        for _, ch in ipairs(Workspace:GetDescendants()) do
+            CheckGate(ch)
+        end
+    end
+
+    return gates
 end
 local function GetSafeGuiParent()
     local pGui = player:WaitForChild("PlayerGui", 5) or player:FindFirstChildOfClass("PlayerGui")
@@ -193,9 +336,12 @@ local function GetSafeGuiParent()
     return CoreGui
 end
 local safeParent = GetSafeGuiParent()
-local LOGO_URL = "https://raw.githubusercontent.com/grava8593-hub/icon/main/rychub.png"
-local LOGO_FILE = "rychub.png"
+local LOGO_URL = "https://raw.githubusercontent.com/grava8593-hub/icon/main/rychub.jpg"
+local LOGO_FILE = "rychub_logo.jpg"
 local LogoAssetId = nil
+local ERDEVA_LOGO_URL = "https://raw.githubusercontent.com/grava8593-hub/icon/main/erdevaprofile.png"
+local ERDEVA_LOGO_FILE = "erdevaprofile.png"
+local ErdevaLogoAssetId = nil
 pcall(function()
     if getcustomasset and writefile and isfile then
         if not isfile(LOGO_FILE) then
@@ -206,6 +352,15 @@ pcall(function()
         end
         if isfile(LOGO_FILE) then
             LogoAssetId = getcustomasset(LOGO_FILE)
+        end
+        if not isfile(ERDEVA_LOGO_FILE) then
+            local ok, data = pcall(function() return game:HttpGet(ERDEVA_LOGO_URL) end)
+            if ok and data and #data > 500 then
+                writefile(ERDEVA_LOGO_FILE, data)
+            end
+        end
+        if isfile(ERDEVA_LOGO_FILE) then
+            ErdevaLogoAssetId = getcustomasset(ERDEVA_LOGO_FILE)
         end
     end
 end)
@@ -394,7 +549,7 @@ FloatToggle.Visible = false
 
 local Splash = Instance.new("Frame", Gui)
 Splash.Name = "ErdevaBypassSplash"
-Splash.Size = UDim2.fromOffset(380, 185)
+Splash.Size = UDim2.fromOffset(380, 215)
 Splash.Position = UDim2.new(0.5, 0, 0.5, 0)
 Splash.AnchorPoint = Vector2.new(0.5, 0.5)
 Splash.BackgroundColor3 = C.Bg
@@ -406,29 +561,48 @@ local SplashStroke = Instance.new("UIStroke", Splash)
 SplashStroke.Color = C.Purple
 SplashStroke.Thickness = 1.8
 
+local SplashLogo = Instance.new("ImageLabel", Splash)
+SplashLogo.Size = UDim2.fromOffset(48, 48)
+SplashLogo.Position = UDim2.new(0.5, 0, 0, 14)
+SplashLogo.AnchorPoint = Vector2.new(0.5, 0)
+SplashLogo.BackgroundColor3 = Color3.fromRGB(24, 12, 40)
+SplashLogo.BorderSizePixel = 0
+SplashLogo.ZIndex = 1001
+Instance.new("UICorner", SplashLogo).CornerRadius = UDim.new(1, 0)
+
+local LogoStroke = Instance.new("UIStroke", SplashLogo)
+LogoStroke.Color = C.PurpleGlow
+LogoStroke.Thickness = 2
+
+if ErdevaLogoAssetId then
+    SplashLogo.Image = ErdevaLogoAssetId
+else
+    SplashLogo.Image = "rbxassetid://10734934585"
+end
+
 local SplashTitle = Instance.new("TextLabel", Splash)
-SplashTitle.Size = UDim2.new(1, 0, 0, 30)
-SplashTitle.Position = UDim2.fromOffset(0, 18)
+SplashTitle.Size = UDim2.new(1, 0, 0, 26)
+SplashTitle.Position = UDim2.fromOffset(0, 68)
 SplashTitle.BackgroundTransparency = 1
 SplashTitle.Text = "ERDEVA BYPASS"
 SplashTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
 SplashTitle.Font = Enum.Font.GothamBold
-SplashTitle.TextSize = 19
+SplashTitle.TextSize = 18
 SplashTitle.ZIndex = 1001
 
 local SplashSub = Instance.new("TextLabel", Splash)
 SplashSub.Size = UDim2.new(1, 0, 0, 16)
-SplashSub.Position = UDim2.fromOffset(0, 52)
+SplashSub.Position = UDim2.fromOffset(0, 94)
 SplashSub.BackgroundTransparency = 1
 SplashSub.Text = "Anti Cheat Bypass"
 SplashSub.TextColor3 = C.PurpleGlow
 SplashSub.Font = Enum.Font.GothamMedium
-SplashSub.TextSize = 11.5
+SplashSub.TextSize = 10.5
 SplashSub.ZIndex = 1001
 
 local SplashBarBg = Instance.new("Frame", Splash)
-SplashBarBg.Size = UDim2.new(1, -70, 0, 7)
-SplashBarBg.Position = UDim2.new(0, 35, 0, 92)
+SplashBarBg.Size = UDim2.new(1, -70, 0, 6)
+SplashBarBg.Position = UDim2.new(0, 35, 0, 122)
 SplashBarBg.BackgroundColor3 = Color3.fromRGB(30, 15, 48)
 SplashBarBg.BorderSizePixel = 0
 SplashBarBg.ZIndex = 1001
@@ -443,22 +617,22 @@ Instance.new("UICorner", SplashBarFill).CornerRadius = UDim.new(1, 0)
 
 local SplashStatus = Instance.new("TextLabel", Splash)
 SplashStatus.Size = UDim2.new(1, 0, 0, 18)
-SplashStatus.Position = UDim2.fromOffset(0, 114)
+SplashStatus.Position = UDim2.fromOffset(0, 142)
 SplashStatus.BackgroundTransparency = 1
 SplashStatus.Text = "[1/4] Checking Environment..."
 SplashStatus.TextColor3 = C.Sub
 SplashStatus.Font = Enum.Font.Gotham
-SplashStatus.TextSize = 11
+SplashStatus.TextSize = 10.5
 SplashStatus.ZIndex = 1001
 
 local SplashPercent = Instance.new("TextLabel", Splash)
 SplashPercent.Size = UDim2.new(1, 0, 0, 16)
-SplashPercent.Position = UDim2.fromOffset(0, 140)
+SplashPercent.Position = UDim2.fromOffset(0, 166)
 SplashPercent.BackgroundTransparency = 1
 SplashPercent.Text = "0%"
 SplashPercent.TextColor3 = Color3.fromRGB(130, 240, 160)
 SplashPercent.Font = Enum.Font.GothamBold
-SplashPercent.TextSize = 11.5
+SplashPercent.TextSize = 11
 SplashPercent.ZIndex = 1001
 
 task.spawn(function()
@@ -472,12 +646,17 @@ task.spawn(function()
         SplashStatus.Text = s.text
         SplashPercent.Text = s.num
         tw(SplashBarFill, { Size = UDim2.new(s.pct, 0, 1, 0) }, 0.4)
+        if not ErdevaLogoAssetId and isfile and isfile(ERDEVA_LOGO_FILE) and getcustomasset then
+            ErdevaLogoAssetId = getcustomasset(ERDEVA_LOGO_FILE)
+            SplashLogo.Image = ErdevaLogoAssetId
+        end
         task.wait(0.70)
     end
     task.wait(0.2)
     tw(Splash, { BackgroundTransparency = 1 }, 0.25)
     for _, ch in ipairs(Splash:GetDescendants()) do
         if ch:IsA("TextLabel") then tw(ch, { TextTransparency = 1 }, 0.2) end
+        if ch:IsA("ImageLabel") then tw(ch, { ImageTransparency = 1 }, 0.2) end
         if ch:IsA("Frame") then tw(ch, { BackgroundTransparency = 1 }, 0.2) end
         if ch:IsA("UIStroke") then tw(ch, { Transparency = 1 }, 0.2) end
     end
@@ -982,7 +1161,7 @@ AddActionCard(GeneratorsPage, "Teleport to Nearest Generator", "Cycle to next in
     local nearestPos, nearestDist = nil, math.huge
     for _, g in ipairs(gens) do
         local dist = (g.pos - myPos).Magnitude
-        if dist > 4 and dist < nearestDist then
+        if dist > 8 and dist < nearestDist then
             nearestPos = g.pos
             nearestDist = dist
         end
@@ -990,7 +1169,7 @@ AddActionCard(GeneratorsPage, "Teleport to Nearest Generator", "Cycle to next in
     if nearestPos then
         hrp.AssemblyLinearVelocity = Vector3.zero
         hrp.AssemblyAngularVelocity = Vector3.zero
-        char:PivotTo(CFrame.new(nearestPos + Vector3.new(0, 3.5, 2)))
+        char:PivotTo(CFrame.new(nearestPos + Vector3.new(0, 4.5, 5.5)))
         Notify("RYC HUB", "Teleported to Nearest Generator!", 2)
     else
         Notify("RYC HUB", "No generator found in map!", 2)
@@ -1001,7 +1180,7 @@ AddToggle(ESPPage, "Survivor ESP", "Highlight Survivors with Cyan Glow", "Surviv
 AddToggle(ESPPage, "Generators ESP", "Show Generator Distance & Status", "GeneratorESP")
 AddToggle(ESPPage, "Exit Gates ESP", "Show Exit Gate Locations", "ExitESP")
 AddToggle(ESPPage, "Fullbright", "Remove Atmosphere Darkness & Fog", "Fullbright")
-AddToggle(TrollPage, "Noclip", "Walk through walls and obstacles", "Noclip")
+AddToggle(TrollPage, "Wall Hack", "Walk through walls and obstacles", "Noclip")
 AddToggle(TrollPage, "Fly Mode", "Free Fly across the map", "Fly")
 AddToggle(TrollPage, "Infinite Stamina", "Never run out of sprint stamina", "InfiniteStamina")
 AddActionCard(OthersPage, "ERDEVA SCRIPT", "LINK DISCORD https://discord.gg/fTv3aKA9Ed", function()
@@ -1175,6 +1354,19 @@ task.spawn(function()
         task.wait(0.2)
     end
 end)
+task.spawn(function()
+    while IsRunning do
+        if Flags.Noclip and Remotes.DisableCollision then
+            pcall(function()
+                Remotes.DisableCollision:FireServer()
+                if player.Character then
+                    Remotes.DisableCollision:FireServer(player.Character)
+                end
+            end)
+        end
+        task.wait(0.5)
+    end
+end)
 RunService.Stepped:Connect(function()
     if not IsRunning or not Flags.Noclip then return end
     pcall(function()
@@ -1184,6 +1376,19 @@ RunService.Stepped:Connect(function()
                 if part:IsA("BasePart") and part.CanCollide then
                     part.CanCollide = false
                 end
+            end
+        end
+    end)
+end)
+RunService.Heartbeat:Connect(function()
+    if not IsRunning or not Flags.Noclip then return end
+    pcall(function()
+        local char = player.Character
+        if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChildWhichIsA("Humanoid") then
+            local hum = char:FindFirstChildWhichIsA("Humanoid")
+            local hrp = char.HumanoidRootPart
+            if hum.MoveDirection.Magnitude > 0.05 then
+                hrp.CFrame = hrp.CFrame + (hum.MoveDirection * 0.42)
             end
         end
     end)
@@ -1203,6 +1408,9 @@ task.spawn(function()
     end
 end)
 local ActiveESPs = {}
+local ActiveGenESPs = {}
+local ActiveGateESPs = {}
+
 local function CreateHighlight(model, color)
     local hl = Instance.new("Highlight")
     hl.Adornee = model
@@ -1216,6 +1424,7 @@ local function CreateHighlight(model, color)
     end
     return hl
 end
+
 local function CreateTag(part, text, color)
     local bb = Instance.new("BillboardGui")
     bb.Size = UDim2.fromOffset(130, 26)
@@ -1238,27 +1447,30 @@ local function CreateTag(part, text, color)
     stroke.Thickness = 1.2
     return bb, lbl
 end
+
 task.spawn(function()
     while IsRunning do
         pcall(function()
             local char = player.Character
             local myPos = char and char:FindFirstChild("HumanoidRootPart") and char.HumanoidRootPart.Position or Vector3.new(0, 0, 0)
+            local theKiller = GetKiller()
+
             for _, p in ipairs(Players:GetPlayers()) do
                 if p ~= player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
                     local pChar = p.Character
                     local hrp = pChar.HumanoidRootPart
                     local dist = math.floor((hrp.Position - myPos).Magnitude)
-                    local isKiller = (pChar == GetKiller())
+                    local isKiller = (pChar == theKiller) or (theKiller ~= nil and pChar:IsDescendantOf(theKiller))
                     local wanted = (isKiller and Flags.KillerESP) or (not isKiller and Flags.SurvivorESP)
                     if wanted then
                         local tagColor = isKiller and C.Red or C.Green
                         local titleText = isKiller and string.format("KILLER [%dm]", dist) or string.format("%s [%dm]", p.DisplayName, dist)
-                        if not ActiveESPs[p] then
+                        if not ActiveESPs[bdp] then
                             ActiveESPs[p] = {}
                             ActiveESPs[p].HL = CreateHighlight(pChar, tagColor)
                             ActiveESPs[p].BB, ActiveESPs[p].Lbl = CreateTag(hrp, titleText, tagColor)
                         else
-                            ActiveESPs[p].Lbl.Text = titleText
+                            if ActiveESPs[p].Lbl then ActiveESPs[p].Lbl.Text = titleText end
                         end
                     else
                         if ActiveESPs[p] then
@@ -1267,6 +1479,76 @@ task.spawn(function()
                             ActiveESPs[p] = nil
                         end
                     end
+                end
+            end
+
+            if Flags.GeneratorESP then
+                local gens = FindGenerators()
+                local currentGens = {}
+                for _, g in ipairs(gens) do
+                    currentGens[g.instance] = true
+                    local dist = math.floor((g.pos - myPos).Magnitude)
+                    local title = string.format("GEN [%dm]", dist)
+                    if not ActiveGenESPs[g.instance] then
+                        ActiveGenESPs[g.instance] = {}
+                        local adorneePart = g.instance:IsA("BasePart") and g.instance or (g.instance.PrimaryPart or g.instance:FindFirstChildWhichIsA("BasePart"))
+                        if adorneePart then
+                            ActiveGenESPs[g.instance].HL = CreateHighlight(g.instance, Color3.fromRGB(255, 215, 0))
+                            ActiveGenESPs[g.instance].BB, ActiveGenESPs[g.instance].Lbl = CreateTag(adorneePart, title, Color3.fromRGB(255, 215, 0))
+                        end
+                    else
+                        if ActiveGenESPs[g.instance].Lbl then
+                            ActiveGenESPs[g.instance].Lbl.Text = title
+                        end
+                    end
+                end
+                for inst, data in pairs(ActiveGenESPs) do
+                    if not currentGens[inst] then
+                        if data.HL then data.HL:Destroy() end
+                        if data.BB then data.BB:Destroy() end
+                        ActiveGenESPs[inst] = nil
+                    end
+                end
+            else
+                for inst, data in pairs(ActiveGenESPs) do
+                    if data.HL then data.HL:Destroy() end
+                    if data.BB then data.BB:Destroy() end
+                    ActiveGenESPs[inst] = nil
+                end
+            end
+
+            if Flags.ExitESP then
+                local gates = FindExitGates()
+                local currentGates = {}
+                for _, g in ipairs(gates) do
+                    currentGates[g.instance] = true
+                    local dist = math.floor((g.pos - myPos).Magnitude)
+                    local title = string.format("EXIT GATE [%dm]", dist)
+                    if not ActiveGateESPs[g.instance] then
+                        ActiveGateESPs[g.instance] = {}
+                        local adorneePart = g.instance:IsA("BasePart") and g.instance or (g.instance.PrimaryPart or g.instance:FindFirstChildWhichIsA("BasePart"))
+                        if adorneePart then
+                            ActiveGateESPs[g.instance].HL = CreateHighlight(g.instance, Color3.fromRGB(0, 220, 255))
+                            ActiveGateESPs[g.instance].BB, ActiveGateESPs[g.instance].Lbl = CreateTag(adorneePart, title, Color3.fromRGB(0, 220, 255))
+                        end
+                    else
+                        if ActiveGateESPs[g.instance].Lbl then
+                            ActiveGateESPs[g.instance].Lbl.Text = title
+                        end
+                    end
+                end
+                for inst, data in pairs(ActiveGateESPs) do
+                    if not currentGates[inst] then
+                        if data.HL then data.HL:Destroy() end
+                        if data.BB then data.BB:Destroy() end
+                        ActiveGateESPs[inst] = nil
+                    end
+                end
+            else
+                for inst, data in pairs(ActiveGateESPs) do
+                    if data.HL then data.HL:Destroy() end
+                    if data.BB then data.BB:Destroy() end
+                    ActiveGateESPs[inst] = nil
                 end
             end
         end)
