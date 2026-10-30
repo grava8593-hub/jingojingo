@@ -16,6 +16,10 @@ local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local player = Players.LocalPlayer
+while not player do
+    task.wait(0.1)
+    player = Players.LocalPlayer
+end
 
 -- Clean existing RYC HUB GUI if re-executed
 pcall(function()
@@ -184,22 +188,17 @@ end
 
 -- ==================== MAIN GUI SETUP ====================
 local function GetSafeGuiParent()
-    local target = nil
+    -- On Mobile / Touch or fallback: PlayerGui is always 100% visible and rendered by Roblox Mobile
+    local pGui = player:WaitForChild("PlayerGui", 5) or player:FindFirstChildOfClass("PlayerGui")
+    if pGui then
+        return pGui
+    end
     if gethui then
-        pcall(function() target = gethui() end)
+        local h = nil
+        pcall(function() h = gethui() end)
+        if h then return h end
     end
-    if not target then
-        pcall(function()
-            local test = Instance.new("Folder")
-            test.Parent = CoreGui
-            test:Destroy()
-            target = CoreGui
-        end)
-    end
-    if not target then
-        target = player:WaitForChild("PlayerGui", 5) or player:FindFirstChildOfClass("PlayerGui")
-    end
-    return target
+    return CoreGui
 end
 
 local safeParent = GetSafeGuiParent()
@@ -215,7 +214,9 @@ local Gui = Instance.new("ScreenGui")
 Gui.Name = "RYCHUB_VIOLENCE"
 Gui.ResetOnSpawn = false
 Gui.IgnoreGuiInset = true
-Gui.DisplayOrder = 99999
+Gui.DisplayOrder = 999999
+Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+Gui.Enabled = true
 
 local parentOk = false
 pcall(function()
@@ -329,20 +330,20 @@ MiniStroke.Thickness = 2
 -- Always Available Floating Screen Quick Toggle Button (Movable Anywhere)
 local FloatToggle = Instance.new("TextButton", Gui)
 FloatToggle.Name = "RYC_FloatToggle"
-FloatToggle.Size = UDim2.fromOffset(36, 36)
-FloatToggle.Position = UDim2.new(0, 16, 0, 16)
-FloatToggle.BackgroundColor3 = Color3.fromRGB(20, 10, 34)
+FloatToggle.Size = UDim2.fromOffset(42, 42)
+FloatToggle.Position = UDim2.new(0, 16, 0.35, 0)
+FloatToggle.BackgroundColor3 = Color3.fromRGB(24, 12, 42)
 FloatToggle.BorderSizePixel = 0
 FloatToggle.Text = "⚡"
-FloatToggle.TextColor3 = C.PurpleGlow
-FloatToggle.TextSize = 16
+FloatToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+FloatToggle.TextSize = 18
 FloatToggle.Font = Enum.Font.GothamBold
 FloatToggle.AutoButtonColor = false
-FloatToggle.ZIndex = 9999
-Instance.new("UICorner", FloatToggle).CornerRadius = UDim.new(0, 18)
+FloatToggle.ZIndex = 99999
+Instance.new("UICorner", FloatToggle).CornerRadius = UDim.new(0, 21)
 local FStroke = Instance.new("UIStroke", FloatToggle)
-FStroke.Color = C.Purple
-FStroke.Thickness = 1.5
+FStroke.Color = C.PurpleGlow
+FStroke.Thickness = 2
 
 local function SetMinimized(state)
     if state then
