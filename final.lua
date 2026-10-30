@@ -106,7 +106,7 @@ local Flags = {
     HitboxExpander = false,
     HitboxSize = 14,
     AutoFixGen = false,
-    AutoSkillcheck = true,
+    AutoSkillcheck = false,
     KillerESP = false,
     SurvivorESP = false,
     GeneratorESP = false,
@@ -185,51 +185,148 @@ local function GetKiller()
     return nil
 end
 
-local function FindExitGates()
-    local gates = {}
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        local n = obj.Name:lower()
-        if (n:find("exit") or n:find("gate") or n:find("lever") or n:find("escapedoor") or n:find("escape")) and (obj:IsA("Model") or obj:IsA("BasePart")) then
-            if not obj:FindFirstAncestorOfClass("Players") and not Players:GetPlayerFromCharacter(obj) then
-                local pos = nil
-                if obj:IsA("BasePart") then
-                    pos = obj.Position
-                elseif obj:IsA("Model") then
-                    pos = obj.PrimaryPart and obj.PrimaryPart.Position or (obj:FindFirstChildWhichIsA("BasePart") and obj:FindFirstChildWhichIsA("BasePart").Position) or (obj.GetPivot and obj:GetPivot().Position)
-                end
-                if pos and pos.Y > -500 then
-                    table.insert(gates, { instance = obj, pos = pos })
-                end
-            end
-        end
-    end
-    return gates
-end
 local function FindGenerators()
     local gens = {}
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        local n = obj.Name:lower()
-        if (n:find("gen") or n:find("motor") or n:find("engine") or n:find("machine") or n:find("repair")) and (obj:IsA("Model") or obj:IsA("BasePart")) then
-            if not obj:FindFirstAncestorOfClass("Players") and not Players:GetPlayerFromCharacter(obj) then
-                local pos = nil
-                if obj:IsA("BasePart") then
-                    pos = obj.Position
-                elseif obj:IsA("Model") then
-                    if obj.PrimaryPart then
-                        pos = obj.PrimaryPart.Position
-                    elseif obj:FindFirstChildWhichIsA("BasePart") then
-                        pos = obj:FindFirstChildWhichIsA("BasePart").Position
-                    elseif obj.GetPivot then
-                        pos = obj:GetPivot().Position
-                    end
-                end
-                if pos and pos.Y > -500 then
-                    table.insert(gens, { instance = obj, pos = pos })
-                end
+    local seen = {}
+
+    local function CheckGenModel(m)
+        if not m or seen[m] then return end
+        if m:FindFirstAncestorOfClass("Players") or Players:GetPlayerFromCharacter(m) then return end
+        local n = m.Name:lower()
+
+        if n:find("foliage") or n:find("grass") or n:find("tree") or n:find("leaf") or n:find("bush") or n:find("plant") or n:find("terrain") or n:find("lobby") or n:find("preview") or n:find("clone") or n:find("general") or n:find("light") or n:find("lamp") or n:find("mesh") or n:find("prop") or n:find("sign") or n:find("sound") or n:find("anim") then
+            return
+        end
+
+        local isGen = false
+        if n == "generator" or n == "gen" or n == "motor" or n == "engine" then
+            isGen = true
+        elseif n:match("^generator%d") or n:match("^gen%d") or n:match("^generator_%d") or n:match("^gen_%d") or n:match("^generator%s%d") or n:match("^gen%s%d") then
+            isGen = true
+        elseif (n:find("generator") or n:find("motor")) and not n:find("room") and not n:find("wall") and not n:find("door") then
+            isGen = true
+        end
+
+        if not isGen then
+            if m:GetAttribute("Progress") ~= nil or m:GetAttribute("Repaired") ~= nil or m:GetAttribute("genaura") ~= nil or m:FindFirstChild("RepairHitbox") or m:FindFirstChild("RepairPrompt") or m:FindFirstChild("RepairVFX") then
+                isGen = true
+            end
+        end
+
+        if isGen then
+            local cf, sz = nil, nil
+            if m:IsA("Model") then
+                pcall(function() cf, sz = m:GetBoundingBox() end)
+            elseif m:IsA("BasePart") then
+                cf = m.CFrame
+                sz = m.Size
+            end
+
+            if sz and (sz.X > 35 or sz.Y > 35 or sz.Z > 35) then
+                return
+            end
+
+            local bestPart = m:IsA("BasePart") and m or (m.PrimaryPart or m:FindFirstChild("RepairHitbox") or m:FindFirstChild("Hitbox") or m:FindFirstChild("Base") or m:FindFirstChildWhichIsA("BasePart"))
+            local targetCFrame = cf or (bestPart and bestPart.CFrame)
+            if targetCFrame and targetCFrame.Position.Y > -500 then
+                seen[m] = true
+                table.insert(gens, {
+                    instance = m,
+                    pos = targetCFrame.Position,
+                    cframe = targetCFrame
+                })
             end
         end
     end
+
+    local inter = Workspace:FindFirstChild("Interractables") or Workspace:FindFirstChild("Interactables")
+    if inter then
+        for _, ch in ipairs(inter:GetChildren()) do CheckGenModel(ch) end
+        for _, ch in ipairs(inter:GetDescendants()) do if ch:IsA("Model") then CheckGenModel(ch) end end
+    end
+
+    local mapFolder = Workspace:FindFirstChild("Map")
+    if mapFolder then
+        for _, ch in ipairs(mapFolder:GetDescendants()) do if ch:IsA("Model") then CheckGenModel(ch) end end
+    end
+
+    for _, ch in ipairs(Workspace:GetChildren()) do
+        if ch:IsA("Model") and ch.Name ~= "Lobby" and ch.Name ~= "Terrain" and ch.Name ~= "Clones" and ch.Name ~= "KillerPreviewModels" then
+            CheckGenModel(ch)
+        end
+    end
+
     return gens
+end
+local function FindExitGates()
+    local gates = {}
+    local seen = {}
+
+    local function CheckGate(obj)
+        if not obj or seen[obj] then return end
+        if obj:FindFirstAncestorOfClass("Players") or Players:GetPlayerFromCharacter(obj) then return end
+        local n = obj.Name:lower()
+        local isGate = false
+
+        if n == "exitgate" or n == "exit gate" or n == "escapedoor" or n == "escape door" or n == "exit_gate" or n == "escape_door" then
+            isGate = true
+        elseif n:match("^exitgate[s%s%d_%-]") or n:match("^escapedoor[s%s%d_%-]") or n:match("^exit_gate[s%s%d_%-]") then
+            isGate = true
+        elseif (n:find("exit") or n:find("escape")) and (n:find("gate") or n:find("lever") or n:find("door")) then
+            if not n:find("sign") and not n:find("room") and not n:find("house") and not n:find("building") and not n:find("toilet") then
+                isGate = true
+            end
+        elseif n == "gate" and (obj:FindFirstChild("Lever") or obj:FindFirstChild("lever") or obj:FindFirstChild("Switch") or obj:GetAttribute("Open") ~= nil) then
+            isGate = true
+        end
+
+        if isGate and (obj:IsA("Model") or obj:IsA("BasePart")) then
+            local parentModel = obj:FindFirstAncestorOfClass("Model")
+            if parentModel and seen[parentModel] then return end
+
+            seen[obj] = true
+            local pos = nil
+            if obj:IsA("BasePart") then
+                pos = obj.Position
+            elseif obj:IsA("Model") then
+                if obj.PrimaryPart then
+                    pos = obj.PrimaryPart.Position
+                elseif obj:FindFirstChildWhichIsA("BasePart") then
+                    pos = obj:FindFirstChildWhichIsA("BasePart").Position
+                elseif obj.GetPivot then
+                    pos = obj:GetPivot().Position
+                end
+            end
+            if pos and pos.Y > -500 then
+                table.insert(gates, { instance = obj, pos = pos })
+            end
+        end
+    end
+
+    local inter = Workspace:FindFirstChild("Interractables") or Workspace:FindFirstChild("Interactables")
+    if inter then
+        for _, ch in ipairs(inter:GetChildren()) do CheckGate(ch) end
+        for _, ch in ipairs(inter:GetDescendants()) do CheckGate(ch) end
+    end
+
+    local mapFolder = Workspace:FindFirstChild("Map")
+    if mapFolder then
+        for _, ch in ipairs(mapFolder:GetDescendants()) do CheckGate(ch) end
+    end
+
+    for _, ch in ipairs(Workspace:GetChildren()) do
+        if ch ~= inter and ch ~= mapFolder and ch.Name ~= "Lobby" and ch.Name ~= "Terrain" and ch.Name ~= "Clones" and ch.Name ~= "KillerPreviewModels" then
+            CheckGate(ch)
+        end
+    end
+
+    if #gates == 0 then
+        for _, ch in ipairs(Workspace:GetDescendants()) do
+            CheckGate(ch)
+        end
+    end
+
+    return gates
 end
 local function GetSafeGuiParent()
     local pGui = player:WaitForChild("PlayerGui", 5) or player:FindFirstChildOfClass("PlayerGui")
@@ -245,7 +342,7 @@ local function GetSafeGuiParent()
 end
 local safeParent = GetSafeGuiParent()
 local LOGO_URL = "https://raw.githubusercontent.com/grava8593-hub/icon/main/rychub.png"
-local LOGO_FILE = "rychub.png"
+local LOGO_FILE = "rychub.jpg"
 local LogoAssetId = nil
 local ERDEVA_LOGO_URL = "https://raw.githubusercontent.com/grava8593-hub/icon/main/erdevaprofile.png"
 local ERDEVA_LOGO_FILE = "erdevaprofile.png"
@@ -558,7 +655,7 @@ task.spawn(function()
             ErdevaLogoAssetId = getcustomasset(ERDEVA_LOGO_FILE)
             SplashLogo.Image = ErdevaLogoAssetId
         end
-        task.wait(0.45)
+        task.wait(0.70)
     end
     task.wait(0.2)
     tw(Splash, { BackgroundTransparency = 1 }, 0.25)
@@ -578,7 +675,7 @@ task.spawn(function()
         FloatText.Text = ""
         HeaderIcon.Image = LogoAssetId
     end
-    Notify("ERDEVA BYPASS", "Welcome, " .. player.DisplayName, 3)
+    Notify("ERDEVA BYPASS", "Bypass Active! Welcome, " .. player.DisplayName, 3)
 end)
 
 local isDragging, dragStart, startPos = false, nil, nil
@@ -1066,19 +1163,20 @@ AddActionCard(GeneratorsPage, "Teleport to Nearest Generator", "Cycle to next in
     local hrp = char.HumanoidRootPart
     local myPos = hrp.Position
     local gens = FindGenerators()
-    local nearestPos, nearestDist = nil, math.huge
+    local nearestGen, nearestDist = nil, math.huge
     for _, g in ipairs(gens) do
         local dist = (g.pos - myPos).Magnitude
-        if dist > 4 and dist < nearestDist then
-            nearestPos = g.pos
+        if dist > 8 and dist < nearestDist then
+            nearestGen = g
             nearestDist = dist
         end
     end
-    if nearestPos then
+    if nearestGen then
         hrp.AssemblyLinearVelocity = Vector3.zero
         hrp.AssemblyAngularVelocity = Vector3.zero
-        char:PivotTo(CFrame.new(nearestPos + Vector3.new(0, 3.5, 2)))
-        Notify("RYC HUB", "Teleported to Nearest Generator!", 2)
+        local targetCF = nearestGen.cframe * CFrame.new(0, 3, 4.5)
+        char:PivotTo(targetCF)
+        Notify("RYC HUB", "Teleported to Generator!", 2)
     else
         Notify("RYC HUB", "No generator found in map!", 2)
     end
@@ -1088,7 +1186,7 @@ AddToggle(ESPPage, "Survivor ESP", "Highlight Survivors with Cyan Glow", "Surviv
 AddToggle(ESPPage, "Generators ESP", "Show Generator Distance & Status", "GeneratorESP")
 AddToggle(ESPPage, "Exit Gates ESP", "Show Exit Gate Locations", "ExitESP")
 AddToggle(ESPPage, "Fullbright", "Remove Atmosphere Darkness & Fog", "Fullbright")
-AddToggle(TrollPage, "Noclip", "Walk through walls and obstacles", "Noclip")
+AddToggle(TrollPage, "Wall Hack", "Walk through walls and obstacles", "Noclip")
 AddToggle(TrollPage, "Fly Mode", "Free Fly across the map", "Fly")
 AddToggle(TrollPage, "Infinite Stamina", "Never run out of sprint stamina", "InfiniteStamina")
 AddActionCard(OthersPage, "ERDEVA SCRIPT", "LINK DISCORD https://discord.gg/fTv3aKA9Ed", function()
@@ -1195,38 +1293,30 @@ task.spawn(function()
 end)
 task.spawn(function()
     while IsRunning do
-        pcall(function()
-            if not Flags.AutoFixGen then return end
-            local char = player.Character
-            if not char or not char:FindFirstChild("HumanoidRootPart") then return end
-            local myPos = char.HumanoidRootPart.Position
-            local gens = FindGenerators()
-            local targetGen = nil
-            local minD = 25
-            for _, g in ipairs(gens) do
-                local d = (g.pos - myPos).Magnitude
-                if d < minD then
-                    minD = d
-                    targetGen = g.instance
-                end
-            end
-            if Remotes.GenRepair then
-                if targetGen then
-                    Remotes.GenRepair:FireServer(targetGen)
-                    Remotes.GenRepair:FireServer(targetGen, true)
-                else
-                    Remotes.GenRepair:FireServer()
-                end
-            end
-            for _, prompt in ipairs(Workspace:GetDescendants()) do
-                if prompt:IsA("ProximityPrompt") and prompt.Enabled then
-                    if fireproximityprompt then
-                        fireproximityprompt(prompt)
+        if Flags.AutoFixGen then
+            pcall(function()
+                local char = player.Character
+                if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+                local myPos = char.HumanoidRootPart.Position
+                local gens = FindGenerators()
+                local targetGen = nil
+                local minD = 20
+                for _, g in ipairs(gens) do
+                    local d = (g.pos - myPos).Magnitude
+                    if d < minD then
+                        minD = d
+                        targetGen = g.instance
                     end
                 end
-            end
-        end)
-        task.wait(0.2)
+                if targetGen and Remotes.GenRepair then
+                    Remotes.GenRepair:FireServer(targetGen)
+                    Remotes.GenRepair:FireServer(targetGen, true)
+                end
+            end)
+            task.wait(0.25)
+        else
+            task.wait(0.5)
+        end
     end
 end)
 task.spawn(function()
@@ -1265,9 +1355,14 @@ end)
 task.spawn(function()
     while IsRunning do
         if Flags.Noclip and Remotes.DisableCollision then
-            pcall(function() Remotes.DisableCollision:FireServer() end)
+            pcall(function()
+                Remotes.DisableCollision:FireServer()
+                if player.Character then
+                    Remotes.DisableCollision:FireServer(player.Character)
+                end
+            end)
         end
-        task.wait(0.6)
+        task.wait(0.5)
     end
 end)
 RunService.Stepped:Connect(function()
@@ -1279,6 +1374,19 @@ RunService.Stepped:Connect(function()
                 if part:IsA("BasePart") and part.CanCollide then
                     part.CanCollide = false
                 end
+            end
+        end
+    end)
+end)
+RunService.Heartbeat:Connect(function()
+    if not IsRunning or not Flags.Noclip then return end
+    pcall(function()
+        local char = player.Character
+        if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChildWhichIsA("Humanoid") then
+            local hum = char:FindFirstChildWhichIsA("Humanoid")
+            local hrp = char.HumanoidRootPart
+            if hum.MoveDirection.Magnitude > 0.05 then
+                hrp.CFrame = hrp.CFrame + (hum.MoveDirection * 0.42)
             end
         end
     end)
