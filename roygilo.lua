@@ -158,8 +158,8 @@ local function GetSafeGuiParent()
     return CoreGui
 end
 local safeParent = GetSafeGuiParent()
-local LOGO_URL = "https://raw.githubusercontent.com/grava8593-hub/icon/main/rychub.jpg"
-local LOGO_FILE = "rychub_logo.jpg"
+local LOGO_URL = "https://raw.githubusercontent.com/grava8593-hub/icon/main/rychub.png"
+local LOGO_FILE = "rychub.png"
 local LogoAssetId = nil
 pcall(function()
     if getcustomasset and writefile and isfile then
@@ -245,7 +245,7 @@ local function Shutdown()
     pcall(function()
         Gui:Destroy()
     end)
-    Notify("RYC HUB", "Script Closed", 2)
+    Notify("RYC HUB", "Script Closed!", 2)
 end
 local CloseBtn = Instance.new("TextButton", Top)
 CloseBtn.Size = UDim2.fromOffset(22, 22)
