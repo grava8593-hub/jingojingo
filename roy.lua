@@ -19,8 +19,16 @@ local player = Players.LocalPlayer
 
 -- Clean existing RYC HUB GUI if re-executed
 pcall(function()
+    if gethui then
+        local old = gethui():FindFirstChild("RYCHUB_VIOLENCE")
+        if old then old:Destroy() end
+    end
     if CoreGui:FindFirstChild("RYCHUB_VIOLENCE") then
         CoreGui.RYCHUB_VIOLENCE:Destroy()
+    end
+    if player and player:FindFirstChild("PlayerGui") then
+        local old = player.PlayerGui:FindFirstChild("RYCHUB_VIOLENCE")
+        if old then old:Destroy() end
     end
 end)
 
@@ -61,36 +69,53 @@ local function Notify(title, desc, duration)
     end)
 end
 
--- ==================== REAL REMOTES MAPPING (FROM DUMP) ====================
-local Remotes = {
+-- ==================== REAL REMOTES MAPPING (DYNAMIC RESOLVER) ====================
+local function GetRemote(pathStr)
+    local cur = ReplicatedStorage
+    for part in string.gmatch(pathStr, "[^%.]+") do
+        if not cur then return nil end
+        cur = cur:FindFirstChild(part)
+    end
+    return cur
+end
+
+local RemotePaths = {
     -- Survivor Abilities & Items
-    Parry = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Items") and ReplicatedStorage.Remotes.Items:FindFirstChild("Parrying Dagger") and ReplicatedStorage.Remotes.Items["Parrying Dagger"]:FindFirstChild("parry"),
-    Shoot = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Items") and ReplicatedStorage.Remotes.Items:FindFirstChild("Twist of Fate") and ReplicatedStorage.Remotes.Items["Twist of Fate"]:FindFirstChild("Fire"),
-    BandageHeal = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Items") and ReplicatedStorage.Remotes.Items:FindFirstChild("Bandage") and ReplicatedStorage.Remotes.Items.Bandage:FindFirstChild("Fire"),
-    Adrenaline = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Items") and ReplicatedStorage.Remotes.Items:FindFirstChild("Adrenaline Shot") and ReplicatedStorage.Remotes.Items["Adrenaline Shot"]:FindFirstChild("Healthy"),
-    HealEvent = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Healing") and ReplicatedStorage.Remotes.Healing:FindFirstChild("HealEvent"),
-    
+    Parry = "Remotes.Items.Parrying Dagger.parry",
+    Shoot = "Remotes.Items.Twist of Fate.Fire",
+    BandageHeal = "Remotes.Items.Bandage.Fire",
+    Adrenaline = "Remotes.Items.Adrenaline Shot.Healthy",
+    HealEvent = "Remotes.Healing.HealEvent",
+
     -- Generators & Skillchecks
-    GenRepair = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Generator") and ReplicatedStorage.Remotes.Generator:FindFirstChild("RepairEvent"),
-    GenSkillEvent = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Generator") and ReplicatedStorage.Remotes.Generator:FindFirstChild("SkillCheckEvent"),
-    GenSkillResult = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Generator") and ReplicatedStorage.Remotes.Generator:FindFirstChild("SkillCheckResultEvent"),
-    HealSkillEvent = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Healing") and ReplicatedStorage.Remotes.Healing:FindFirstChild("SkillCheckEvent"),
-    HealSkillResult = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Healing") and ReplicatedStorage.Remotes.Healing:FindFirstChild("SkillCheckResultEvent"),
+    GenRepair = "Remotes.Generator.RepairEvent",
+    GenSkillEvent = "Remotes.Generator.SkillCheckEvent",
+    GenSkillResult = "Remotes.Generator.SkillCheckResultEvent",
+    HealSkillEvent = "Remotes.Healing.SkillCheckEvent",
+    HealSkillResult = "Remotes.Healing.SkillCheckResultEvent",
 
     -- Exit & Levers
-    ExitLever = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Exit") and ReplicatedStorage.Remotes.Exit:FindFirstChild("LeverEvent"),
-    ExitGate = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Items") and ReplicatedStorage.Remotes.Items:FindFirstChild("Gate") and ReplicatedStorage.Remotes.Items.Gate:FindFirstChild("gate"),
+    ExitLever = "Remotes.Exit.LeverEvent",
+    ExitGate = "Remotes.Items.Gate.gate",
 
     -- Killer Combat
-    BasicAttack = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Attacks") and ReplicatedStorage.Remotes.Attacks:FindFirstChild("BasicAttack"),
-    Hit = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Attacks") and ReplicatedStorage.Remotes.Attacks:FindFirstChild("hit"),
-    FlingReport = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Killers") and ReplicatedStorage.Remotes.Killers:FindFirstChild("FlingReport"),
-    PalletStun = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Pallet") and ReplicatedStorage.Remotes.Pallet:FindFirstChild("Jason") and ReplicatedStorage.Remotes.Pallet.Jason:FindFirstChild("Stun"),
+    BasicAttack = "Remotes.Attacks.BasicAttack",
+    Hit = "Remotes.Attacks.hit",
+    FlingReport = "Remotes.Killers.FlingReport",
+    PalletStun = "Remotes.Pallet.Jason.Stun",
 
     -- Mechanics
-    TeleportChar = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Mechanics") and ReplicatedStorage.Remotes.Mechanics:FindFirstChild("Teleportcharacter"),
-    GlobalTeleport = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Teleport")
+    TeleportChar = "Remotes.Mechanics.Teleportcharacter",
+    GlobalTeleport = "Remotes.Teleport"
 }
+
+local Remotes = setmetatable({}, {
+    __index = function(t, k)
+        local path = RemotePaths[k]
+        if not path then return nil end
+        return GetRemote(path)
+    end
+})
 
 local IsRunning = true
 
@@ -158,14 +183,50 @@ local function GetKiller()
 end
 
 -- ==================== MAIN GUI SETUP ====================
-local W, H = 540, 340
+local function GetSafeGuiParent()
+    local target = nil
+    if gethui then
+        pcall(function() target = gethui() end)
+    end
+    if not target then
+        pcall(function()
+            local test = Instance.new("Folder")
+            test.Parent = CoreGui
+            test:Destroy()
+            target = CoreGui
+        end)
+    end
+    if not target then
+        target = player:WaitForChild("PlayerGui", 5) or player:FindFirstChildOfClass("PlayerGui")
+    end
+    return target
+end
+
+local safeParent = GetSafeGuiParent()
+
+local W, H = 510, 325
+local Cam = Workspace.CurrentCamera
+if Cam and Cam.ViewportSize.Y < 420 then
+    H = math.clamp(Cam.ViewportSize.Y - 35, 250, 325)
+    W = math.clamp(Cam.ViewportSize.X - 35, 340, 510)
+end
 
 local Gui = Instance.new("ScreenGui")
 Gui.Name = "RYCHUB_VIOLENCE"
 Gui.ResetOnSpawn = false
 Gui.IgnoreGuiInset = true
-Gui.DisplayOrder = 9999
-Gui.Parent = CoreGui
+Gui.DisplayOrder = 99999
+
+local parentOk = false
+pcall(function()
+    Gui.Parent = safeParent
+    parentOk = true
+end)
+if not parentOk or not Gui.Parent then
+    pcall(function()
+        Gui.Parent = player:WaitForChild("PlayerGui")
+    end)
+end
 
 local Main = Instance.new("Frame", Gui)
 Main.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -245,27 +306,43 @@ Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 5)
 local MinStroke = Instance.new("UIStroke", MinBtn)
 MinStroke.Color = C.Border
 
--- Floating Mini Icon
-local MiniIcon = Instance.new("Frame", Gui)
-MiniIcon.Size = UDim2.fromOffset(48, 48)
-MiniIcon.Position = UDim2.new(0, 20, 0.5, -24)
+-- Floating Mini Button (Visible when minimized, draggable on Android & PC)
+local MiniIcon = Instance.new("TextButton", Gui)
+MiniIcon.Name = "RYC_MiniToggle"
+MiniIcon.Size = UDim2.fromOffset(46, 46)
+MiniIcon.Position = UDim2.new(0, 18, 0.5, -23)
 MiniIcon.BackgroundColor3 = Color3.fromRGB(20, 10, 34)
 MiniIcon.BorderSizePixel = 0
 MiniIcon.Visible = false
 MiniIcon.Active = true
+MiniIcon.AutoButtonColor = false
+MiniIcon.Text = "RYC"
+MiniIcon.TextColor3 = C.PurpleGlow
+MiniIcon.TextSize = 13
+MiniIcon.Font = Enum.Font.GothamBold
+MiniIcon.ZIndex = 9999
 Instance.new("UICorner", MiniIcon).CornerRadius = UDim.new(0, 12)
 local MiniStroke = Instance.new("UIStroke", MiniIcon)
 MiniStroke.Color = C.Purple
 MiniStroke.Thickness = 2
 
-local MiniLabel = Instance.new("TextLabel", MiniIcon)
-MiniLabel.Size = UDim2.new(1, 0, 1, 0)
-MiniLabel.BackgroundTransparency = 1
-MiniLabel.Text = "RYC"
-MiniLabel.TextColor3 = C.PurpleGlow
-MiniLabel.TextSize = 12
-MiniLabel.Font = Enum.Font.GothamBold
-MiniLabel.TextXAlignment = Enum.TextXAlignment.Center
+-- Always Available Floating Screen Quick Toggle Button (Movable Anywhere)
+local FloatToggle = Instance.new("TextButton", Gui)
+FloatToggle.Name = "RYC_FloatToggle"
+FloatToggle.Size = UDim2.fromOffset(36, 36)
+FloatToggle.Position = UDim2.new(0, 16, 0, 16)
+FloatToggle.BackgroundColor3 = Color3.fromRGB(20, 10, 34)
+FloatToggle.BorderSizePixel = 0
+FloatToggle.Text = "⚡"
+FloatToggle.TextColor3 = C.PurpleGlow
+FloatToggle.TextSize = 16
+FloatToggle.Font = Enum.Font.GothamBold
+FloatToggle.AutoButtonColor = false
+FloatToggle.ZIndex = 9999
+Instance.new("UICorner", FloatToggle).CornerRadius = UDim.new(0, 18)
+local FStroke = Instance.new("UIStroke", FloatToggle)
+FStroke.Color = C.Purple
+FStroke.Thickness = 1.5
 
 local function SetMinimized(state)
     if state then
@@ -287,28 +364,62 @@ MinBtn.MouseButton1Click:Connect(function()
     SetMinimized(true)
 end)
 
+-- MiniIcon Drag & Tap
+local miniMoved = false
 MiniIcon.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        miniMoved = false
         local dragStart = input.Position
         local startPos = MiniIcon.Position
-        local moved = false
-        local connection
+        local connection, endConn
         connection = input.Changed:Connect(function()
             if input.UserInputState == Enum.UserInputState.Change then
                 local delta = input.Position - dragStart
-                if delta.Magnitude > 4 then
-                    moved = true
+                if delta.Magnitude > 5 then
+                    miniMoved = true
                     MiniIcon.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
                 end
             end
         end)
-        local endConn
         endConn = UserInputService.InputEnded:Connect(function(endInput)
             if endInput == input then
-                connection:Disconnect()
-                endConn:Disconnect()
-                if not moved then
+                if connection then connection:Disconnect() end
+                if endConn then endConn:Disconnect() end
+                if not miniMoved then
                     SetMinimized(false)
+                end
+            end
+        end)
+    end
+end)
+
+-- FloatToggle Drag & Tap
+local floatMoved = false
+FloatToggle.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        floatMoved = false
+        local dragStart = input.Position
+        local startPos = FloatToggle.Position
+        local connection, endConn
+        connection = input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.Change then
+                local delta = input.Position - dragStart
+                if delta.Magnitude > 5 then
+                    floatMoved = true
+                    FloatToggle.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+                end
+            end
+        end)
+        endConn = UserInputService.InputEnded:Connect(function(endInput)
+            if endInput == input then
+                if connection then connection:Disconnect() end
+                if endConn then endConn:Disconnect() end
+                if not floatMoved then
+                    if Main.Visible then
+                        SetMinimized(true)
+                    else
+                        SetMinimized(false)
+                    end
                 end
             end
         end)
@@ -908,25 +1019,34 @@ end)
 -- ==================== LIVE REMOTE AUTOMATION LOOPS ====================
 
 -- 1. Auto Perfect Skill Check (Listens to Real Game Remote)
-if Remotes.GenSkillEvent then
-    Remotes.GenSkillEvent.OnClientEvent:Connect(function(...)
-        if Flags.AutoSkillcheck and Remotes.GenSkillResult then
-            pcall(function()
-                Remotes.GenSkillResult:FireServer(true, ...)
-            end)
-        end
-    end)
-end
-
-if Remotes.HealSkillEvent then
-    Remotes.HealSkillEvent.OnClientEvent:Connect(function(...)
-        if Flags.AutoSkillcheck and Remotes.HealSkillResult then
-            pcall(function()
-                Remotes.HealSkillResult:FireServer(true, ...)
-            end)
-        end
-    end)
-end
+task.spawn(function()
+    local connectedGen, connectedHeal = false, false
+    while IsRunning and (not connectedGen or not connectedHeal) do
+        pcall(function()
+            if not connectedGen and Remotes.GenSkillEvent then
+                Remotes.GenSkillEvent.OnClientEvent:Connect(function(...)
+                    if Flags.AutoSkillcheck and Remotes.GenSkillResult then
+                        pcall(function()
+                            Remotes.GenSkillResult:FireServer(true, ...)
+                        end)
+                    end
+                end)
+                connectedGen = true
+            end
+            if not connectedHeal and Remotes.HealSkillEvent then
+                Remotes.HealSkillEvent.OnClientEvent:Connect(function(...)
+                    if Flags.AutoSkillcheck and Remotes.HealSkillResult then
+                        pcall(function()
+                            Remotes.HealSkillResult:FireServer(true, ...)
+                        end)
+                    end
+                end)
+                connectedHeal = true
+            end
+        end)
+        task.wait(1.5)
+    end
+end)
 
 -- 2. Auto Shoot, Auto Parry, Auto Heal (Real Remotes)
 task.spawn(function()
@@ -1110,7 +1230,10 @@ local function CreateHighlight(model, color)
     hl.OutlineColor = Color3.fromRGB(255, 255, 255)
     hl.FillTransparency = 0.45
     hl.OutlineTransparency = 0.1
-    hl.Parent = CoreGui
+    pcall(function() hl.Parent = safeParent end)
+    if not hl.Parent then
+        pcall(function() hl.Parent = model end)
+    end
     return hl
 end
 
@@ -1120,7 +1243,10 @@ local function CreateTag(part, text, color)
     bb.Adornee = part
     bb.AlwaysOnTop = true
     bb.StudsOffset = Vector3.new(0, 2.5, 0)
-    bb.Parent = CoreGui
+    pcall(function() bb.Parent = safeParent end)
+    if not bb.Parent then
+        pcall(function() bb.Parent = part end)
+    end
 
     local lbl = Instance.new("TextLabel", bb)
     lbl.Size = UDim2.new(1, 0, 1, 0)
