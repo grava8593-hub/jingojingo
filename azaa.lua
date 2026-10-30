@@ -207,6 +207,25 @@ end
 
 local safeParent = GetSafeGuiParent()
 
+-- Official RYC HUB Logo Asset Loader (from GitHub)
+local LOGO_URL = "https://raw.githubusercontent.com/grava8593-hub/icon/main/rychub.png"
+local LOGO_FILE = "ryc_logo.png"
+local LogoAssetId = nil
+
+pcall(function()
+    if getcustomasset and writefile and isfile then
+        if not isfile(LOGO_FILE) then
+            local ok, data = pcall(function() return game:HttpGet(LOGO_URL) end)
+            if ok and data and #data > 500 then
+                writefile(LOGO_FILE, data)
+            end
+        end
+        if isfile(LOGO_FILE) then
+            LogoAssetId = getcustomasset(LOGO_FILE)
+        end
+    end
+end)
+
 local W, H = 510, 325
 local Cam = Workspace.CurrentCamera
 if Cam and Cam.ViewportSize.Y < 420 then
@@ -257,9 +276,21 @@ TopLine.Position = UDim2.new(0, 0, 1, -1)
 TopLine.BackgroundColor3 = C.Border
 TopLine.BorderSizePixel = 0
 
+local HeaderIcon = Instance.new("ImageLabel", Top)
+HeaderIcon.Size = UDim2.fromOffset(20, 20)
+HeaderIcon.Position = UDim2.new(0, 10, 0.5, -10)
+HeaderIcon.BackgroundTransparency = 1
+HeaderIcon.BorderSizePixel = 0
+if LogoAssetId then
+    HeaderIcon.Image = LogoAssetId
+else
+    HeaderIcon.Image = "rbxassetid://10734934585"
+end
+Instance.new("UICorner", HeaderIcon).CornerRadius = UDim.new(1, 0)
+
 local Title = Instance.new("TextLabel", Top)
-Title.Size = UDim2.new(1, -70, 1, 0)
-Title.Position = UDim2.fromOffset(14, 0)
+Title.Size = UDim2.new(1, -95, 1, 0)
+Title.Position = UDim2.fromOffset(36, 0)
 Title.BackgroundTransparency = 1
 Title.Text = "RYC HUB | Violence District"
 Title.TextColor3 = C.Txt
@@ -311,57 +342,16 @@ Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 5)
 local MinStroke = Instance.new("UIStroke", MinBtn)
 MinStroke.Color = C.Border
 
--- Floating Mini Button (Visible when minimized, draggable on Android & PC)
-local MiniIcon = Instance.new("TextButton", Gui)
-MiniIcon.Name = "RYC_MiniToggle"
-MiniIcon.Size = UDim2.fromOffset(46, 46)
-MiniIcon.Position = UDim2.new(0, 18, 0.5, -23)
-MiniIcon.BackgroundColor3 = Color3.fromRGB(20, 10, 34)
-MiniIcon.BorderSizePixel = 0
-MiniIcon.Visible = false
-MiniIcon.Active = true
-MiniIcon.AutoButtonColor = false
-MiniIcon.Text = "RYC"
-MiniIcon.TextColor3 = C.PurpleGlow
-MiniIcon.TextSize = 13
-MiniIcon.Font = Enum.Font.GothamBold
-MiniIcon.ZIndex = 9999
-Instance.new("UICorner", MiniIcon).CornerRadius = UDim.new(0, 12)
-local MiniStroke = Instance.new("UIStroke", MiniIcon)
-MiniStroke.Color = C.Purple
-MiniStroke.Thickness = 2
-
--- Always Available Floating Screen Quick Toggle Button (Movable Anywhere)
-local FloatToggle = Instance.new("TextButton", Gui)
-FloatToggle.Name = "RYC_FloatToggle"
-FloatToggle.Size = UDim2.fromOffset(42, 42)
-FloatToggle.Position = UDim2.new(0, 16, 0.35, 0)
-FloatToggle.BackgroundColor3 = Color3.fromRGB(24, 12, 42)
-FloatToggle.BorderSizePixel = 0
-FloatToggle.Text = "RYC"
-FloatToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
-FloatToggle.TextSize = 13
-FloatToggle.Font = Enum.Font.GothamBold
-FloatToggle.AutoButtonColor = false
-FloatToggle.ZIndex = 99999
-Instance.new("UICorner", FloatToggle).CornerRadius = UDim.new(0, 21)
-local FStroke = Instance.new("UIStroke", FloatToggle)
-FStroke.Color = C.PurpleGlow
-FStroke.Thickness = 2
-
 local function SetMinimized(state)
     if state then
-        tw(Main, { Size = UDim2.fromOffset(W, 0), BackgroundTransparency = 1 }, 0.18)
-        task.delay(0.18, function()
+        tw(Main, { Size = UDim2.fromOffset(W, 0), BackgroundTransparency = 1 }, 0.16)
+        task.delay(0.16, function()
             Main.Visible = false
-            MiniIcon.Visible = true
-            tw(MiniIcon, { BackgroundTransparency = 0 }, 0.15)
         end)
     else
-        MiniIcon.Visible = false
         Main.Visible = true
         Main.BackgroundTransparency = 0
-        tw(Main, { Size = UDim2.fromOffset(W, H) }, 0.18)
+        tw(Main, { Size = UDim2.fromOffset(W, H) }, 0.16)
     end
 end
 
@@ -369,34 +359,42 @@ MinBtn.MouseButton1Click:Connect(function()
     SetMinimized(true)
 end)
 
--- MiniIcon Drag & Tap
-local miniMoved = false
-MiniIcon.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        miniMoved = false
-        local dragStart = input.Position
-        local startPos = MiniIcon.Position
-        local connection, endConn
-        connection = input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.Change then
-                local delta = input.Position - dragStart
-                if delta.Magnitude > 5 then
-                    miniMoved = true
-                    MiniIcon.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-                end
-            end
-        end)
-        endConn = UserInputService.InputEnded:Connect(function(endInput)
-            if endInput == input then
-                if connection then connection:Disconnect() end
-                if endConn then endConn:Disconnect() end
-                if not miniMoved then
-                    SetMinimized(false)
-                end
-            end
-        end)
-    end
-end)
+-- ONLY ONE SINGLE FLOATING LOGO BUTTON (DRAGGABLE ANYWHERE)
+local FloatToggle = Instance.new("TextButton", Gui)
+FloatToggle.Name = "RYC_FloatingLogo"
+FloatToggle.Size = UDim2.fromOffset(46, 46)
+FloatToggle.Position = UDim2.new(0, 16, 0.35, 0)
+FloatToggle.BackgroundColor3 = Color3.fromRGB(20, 10, 34)
+FloatToggle.BorderSizePixel = 0
+FloatToggle.Text = ""
+FloatToggle.AutoButtonColor = false
+FloatToggle.ZIndex = 99999
+Instance.new("UICorner", FloatToggle).CornerRadius = UDim.new(1, 0)
+local FStroke = Instance.new("UIStroke", FloatToggle)
+FStroke.Color = C.Purple
+FStroke.Thickness = 2
+
+local FloatImg = Instance.new("ImageLabel", FloatToggle)
+FloatImg.Size = UDim2.new(1, -4, 1, -4)
+FloatImg.Position = UDim2.new(0, 2, 0, 2)
+FloatImg.BackgroundTransparency = 1
+FloatImg.BorderSizePixel = 0
+Instance.new("UICorner", FloatImg).CornerRadius = UDim.new(1, 0)
+
+local FloatText = Instance.new("TextLabel", FloatToggle)
+FloatText.Size = UDim2.new(1, 0, 1, 0)
+FloatText.BackgroundTransparency = 1
+FloatText.TextColor3 = C.PurpleGlow
+FloatText.TextSize = 13
+FloatText.Font = Enum.Font.GothamBold
+
+if LogoAssetId then
+    FloatImg.Image = LogoAssetId
+    FloatText.Text = ""
+else
+    FloatImg.Visible = false
+    FloatText.Text = "RYC"
+end
 
 -- FloatToggle Drag & Tap
 local floatMoved = false
@@ -520,7 +518,7 @@ local TabIcons = {
     Survivor = "rbxassetid://10747373176",
     Killer = "rbxassetid://10734951847",
     Generators = "rbxassetid://10723415205",
-    ESP = "rbxassetid://10723414620",
+    ESP = "rbxassetid://10723346959",
     ["Troll Players"] = "rbxassetid://10709770560",
     ["Others Scripts"] = "rbxassetid://10723405649"
 }
@@ -768,6 +766,7 @@ local InfoPage = MakeTab("Info", 1)
 local SurvivorPage = MakeTab("Survivor", 2)
 local KillerPage = MakeTab("Killer", 3)
 local GensPage = MakeTab("Generators", 4)
+local GeneratorsPage = GensPage
 local ESPPage = MakeTab("ESP", 5)
 local TrollPage = MakeTab("Troll Players", 6)
 local OthersPage = MakeTab("Others Scripts", 7)
